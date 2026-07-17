@@ -1,6 +1,6 @@
 # Production-readiness contract
 
-Whyloom `0.5` is intended for real codebase pilots as a local CLI.
+Whyloom `0.5.1` is intended for real codebase pilots as a local CLI.
 
 ## Guarantees
 
@@ -19,6 +19,9 @@ Whyloom `0.5` is intended for real codebase pilots as a local CLI.
 - Onboarding is idempotent, records a machine-readable pending request, exposes
   that lifecycle through indexing, and refuses completion until valid project
   memory exists.
+- Code discovery and bootstrap evidence prune virtual environments, dependency
+  caches, generated build trees, and nested `site-packages` directories before
+  parsing files.
 - Skill installation is idempotent, marks owned directories, and refuses to
   overwrite or remove unowned or symlinked skill directories.
 - Distribution artifacts bundle both skills for offline registration after the

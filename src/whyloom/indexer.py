@@ -8,6 +8,7 @@ from .codegraph import extract_python, source_hash
 from .config import resolve_repository_path
 from .migrations import INDEX_FORMAT_VERSION
 from .models import Diagnostic, GraphEdge, GraphNode, ProjectRecord
+from .path_policy import has_ignored_directory
 from .records import discover_records
 from .store import GraphStore
 
@@ -97,7 +98,7 @@ def discover_code_paths(root: Path, config: dict) -> tuple[list[Path], list[Diag
             if not path.is_file() or path.is_symlink():
                 continue
             rel = path.relative_to(root).as_posix()
-            if _matches(rel, config["exclude"]):
+            if has_ignored_directory(rel) or _matches(rel, config["exclude"]):
                 continue
             if path.suffix != ".py":
                 diagnostics.append(

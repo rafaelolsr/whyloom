@@ -15,7 +15,20 @@ class WhyloomConfig(BaseModel):
     database: str = ".whyloom/cache/graph.sqlite"
     include: list[str] = Field(default_factory=lambda: ["**/*.py"])
     exclude: list[str] = Field(
-        default_factory=lambda: [".git/**", ".whyloom/cache/**", ".venv/**", "build/**", "dist/**"]
+        default_factory=lambda: [
+            ".git/**",
+            ".whyloom/cache/**",
+            ".venv*/**",
+            "venv/**",
+            "venv-*/**",
+            ".tox/**",
+            ".nox/**",
+            "__pypackages__/**",
+            "**/site-packages/**",
+            "**/node_modules/**",
+            "build/**",
+            "dist/**",
+        ]
     )
     max_depth: int = Field(default=2, ge=0, le=5)
     max_items: int = Field(default=20, ge=1, le=200)

@@ -132,6 +132,9 @@ installed Whyloom skills detect the request, inspect the evidence, and create
 proposed records with explicit confidence, citations, and open questions. They
 then validate, re-index, and mark onboarding complete.
 
+Virtual environments and dependency caches—including named environments such as
+`.venv-deepeval-cli`—are pruned from both the graph and onboarding evidence.
+
 Check the lifecycle at any time:
 
 ```bash

@@ -13,6 +13,7 @@ whyloom/
 │   ├── cli.py
 │   ├── bootstrap.py
 │   ├── installer.py
+│   ├── path_policy.py
 │   ├── config.py
 │   ├── models.py
 │   ├── records.py
@@ -38,6 +39,10 @@ The wheel installs the skill sources under `share/whyloom/skills/` inside the
 isolated tool environment. `whyloom install` copies from that immutable bundle
 into assistant-specific personal or project locations and adds an ownership
 marker used for safe updates and removal.
+
+`path_policy.py` defines generated and dependency directories that neither code
+indexing nor onboarding evidence may traverse, including suffixed virtual
+environments and nested `site-packages` trees.
 
 ## Structure added to an adopted codebase
 

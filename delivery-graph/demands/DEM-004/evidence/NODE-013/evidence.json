@@ -1,0 +1,14 @@
+{
+  "node_id": "NODE-013",
+  "items": [
+    {
+      "id": "EVD-001",
+      "kind": "manual",
+      "summary": "Regression tests exclude suffixed virtual environments, venv-local, .tox, node_modules, and nested site-packages from index and evidence; read-only StarBase scan found 1,055 project Python files and zero leaked dependency files.",
+      "satisfies": "Named virtual environment regression tests pass.",
+      "result": "pass",
+      "artifact": "artifacts/EVD-001-test_bootstrap.py",
+      "created_at": "2026-07-17T14:02:42.774Z"
+    }
+  ]
+}

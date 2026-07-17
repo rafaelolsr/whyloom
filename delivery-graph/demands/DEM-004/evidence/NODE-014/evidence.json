@@ -1,0 +1,14 @@
+{
+  "node_id": "NODE-014",
+  "items": [
+    {
+      "id": "EVD-001",
+      "kind": "manual",
+      "summary": "35 tests, Ruff, retrieval evals, self-index, doctor, wheel build, distribution checks, skill validation, isolated wheel smoke test, and StarBase-shaped dogfood passed.",
+      "satisfies": "Full release gate and reported-shape dogfood pass.",
+      "result": "pass",
+      "artifact": "artifacts/EVD-001-whyloom-0.5.1-py3-none-any.whl",
+      "created_at": "2026-07-17T14:02:43.425Z"
+    }
+  ]
+}

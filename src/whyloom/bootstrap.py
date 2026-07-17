@@ -13,6 +13,7 @@ from typing import Any
 from .config import resolve_repository_path
 from .indexer import index_project
 from .operations import GLOSSARY, OVERVIEW, init_project, validate_project
+from .path_policy import is_ignored_directory
 from .records import discover_records
 
 MANIFEST_VERSION = 1
@@ -21,7 +22,6 @@ REQUEST_RELATIVE_PATH = ".whyloom/cache/bootstrap/request.json"
 MAX_FILE_BYTES = 1_000_000
 EXCERPT_LIMIT = 240
 MAX_SCANNED_FILES = 20_000
-SKIP_PARTS = {".git", ".whyloom", ".venv", "build", "dist", "node_modules", "vendor"}
 DOC_NAMES = {"readme", "contributing", "architecture", "design", "security", "changelog"}
 DEPENDENCY_NAMES = {
     "cargo.toml",
@@ -106,7 +106,7 @@ def _walk_evidence(root: Path, max_evidence: int) -> tuple[list[BootstrapEvidenc
     paths: list[Path] = []
     scan_truncated = False
     for current, directories, files in os.walk(root, followlinks=False):
-        directories[:] = sorted(directory for directory in directories if directory not in SKIP_PARTS)
+        directories[:] = sorted(directory for directory in directories if not is_ignored_directory(directory))
         for name in sorted(files):
             paths.append(Path(current) / name)
             if len(paths) >= MAX_SCANNED_FILES:

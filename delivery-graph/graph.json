@@ -5,8 +5,8 @@
     "status": "draft",
     "source": "local",
     "created_at": "2026-07-17T03:02:30.788Z",
-    "updated_at": "2026-07-17T13:40:22.588Z",
-    "rev": 58
+    "updated_at": "2026-07-17T14:02:43.788Z",
+    "rev": 68
   },
   "demands": [
     {
@@ -33,6 +33,15 @@
       "source": "User requested that bootstrap intent be injected into Whyloom instead of requiring a manual agent prompt.",
       "summary": "Turn repository bootstrap into a discoverable one-command command-and-skill workflow.",
       "outcome": "A single whyloom onboard command prepares evidence and a pending agent task that installed Whyloom skills detect and complete safely.",
+      "constraints": [],
+      "non_goals": []
+    },
+    {
+      "id": "DEM-004",
+      "title": "Exclude virtual environments from project discovery",
+      "source": "Real onboarding output indexed more than thirteen thousand files from a named virtual environment directory.",
+      "summary": "Prevent generated dependency trees from contaminating Whyloom graphs and onboarding evidence.",
+      "outcome": "Indexing and onboarding prune virtual environments and dependency caches regardless of environment suffix while preserving project source files.",
       "constraints": [],
       "non_goals": []
     }
@@ -276,6 +285,46 @@
           "and dogfood pass."
         ]
       }
+    },
+    {
+      "id": "REQ-014",
+      "demand_id": "DEM-004",
+      "statement": "Prune named virtual environments and dependency caches from code indexing and bootstrap evidence.",
+      "priority": "must",
+      "acceptance": [
+        "Directories such as .venv-deepeval-cli",
+        ".venv-custom",
+        "venv-local",
+        "site-packages",
+        ".tox",
+        "and node_modules never appear in changed paths or bootstrap evidence."
+      ],
+      "validation": {
+        "method": "manual-review",
+        "required_evidence": [
+          "Automated regression tests reproduce the reported repository shape and pass."
+        ]
+      }
+    },
+    {
+      "id": "REQ-015",
+      "demand_id": "DEM-004",
+      "statement": "Ship the exclusion fix as a verified patch release.",
+      "priority": "must",
+      "acceptance": [
+        "Full tests",
+        "lint",
+        "dogfood",
+        "wheel checks",
+        "CI",
+        "and a clean PyPI installation pass."
+      ],
+      "validation": {
+        "method": "manual-review",
+        "required_evidence": [
+          "Release evidence and public package verification pass."
+        ]
+      }
     }
   ],
   "gaps": [],
@@ -299,6 +348,10 @@
     {
       "id": "TRK-onboarding-automation",
       "title": "Onboarding automation"
+    },
+    {
+      "id": "TRK-discovery-hygiene",
+      "title": "Discovery hygiene"
     }
   ],
   "nodes": [
@@ -568,6 +621,49 @@
           "Full tests, lint, build, wheel checks, skill validation, and existing-codebase dogfood pass."
         ],
         "evidence_path": "delivery-graph/demands/DEM-003/evidence/NODE-012/"
+      },
+      "sync": {
+        "linear_issue_id": null,
+        "ado_task_id": null
+      }
+    },
+    {
+      "id": "NODE-013",
+      "title": "Implement shared dependency directory pruning",
+      "type": "implementation",
+      "track": "TRK-discovery-hygiene",
+      "requirement_ids": [
+        "REQ-014"
+      ],
+      "depends_on": [],
+      "status": "done",
+      "validation": {
+        "required": [
+          "Named virtual environment regression tests pass."
+        ],
+        "evidence_path": "delivery-graph/demands/DEM-004/evidence/NODE-013/"
+      },
+      "sync": {
+        "linear_issue_id": null,
+        "ado_task_id": null
+      }
+    },
+    {
+      "id": "NODE-014",
+      "title": "Validate and publish discovery hygiene patch",
+      "type": "implementation",
+      "track": "TRK-discovery-hygiene",
+      "requirement_ids": [
+        "REQ-014",
+        "REQ-015"
+      ],
+      "depends_on": [],
+      "status": "done",
+      "validation": {
+        "required": [
+          "Full release gate and reported-shape dogfood pass."
+        ],
+        "evidence_path": "delivery-graph/demands/DEM-004/evidence/NODE-014/"
       },
       "sync": {
         "linear_issue_id": null,
