@@ -16,6 +16,8 @@ evidence path so an agent can verify it before acting.
 
 ## Command guarantees
 
+- `install`: operation, project scope, and one result per platform and skill with destination and action.
+- `uninstall`: removes only Whyloom-owned skill directories and reports absent directories without error.
 - `index`: changed, unchanged, and removed sources plus diagnostics.
 - `bootstrap`: index result, evidence coverage, generated manifest and report paths,
   truncation state, and `canonical_records_changed: false`.

@@ -40,6 +40,50 @@ Local rationale graph
 Task-specific context for humans and agents
 ```
 
+## Install
+
+Install the isolated CLI from PyPI:
+
+```bash
+uv tool install whyloom
+whyloom install
+```
+
+`whyloom install` registers both the ongoing `whyloom` skill and the one-time
+`whyloom-bootstrap` skill. With no platform option, it installs into every
+detected supported assistant and falls back to the generic Agent Skills location.
+
+Choose a platform or commit the skills with a project explicitly:
+
+```bash
+whyloom install --platform codex
+whyloom install --platform claude
+whyloom install --platform copilot
+whyloom install --platform agents
+
+whyloom install --platform copilot --project --root .
+```
+
+| Platform | Personal skills | Project skills |
+|---|---|---|
+| Codex | `~/.codex/skills/` | `.agents/skills/` |
+| Claude | `~/.claude/skills/` | `.claude/skills/` |
+| GitHub Copilot | `~/.copilot/skills/` | `.github/skills/` |
+| Agent Skills | `~/.agents/skills/` | `.agents/skills/` |
+
+Project-scoped Copilot skills work with Copilot coding agent, Copilot CLI, and
+agent mode in VS Code. To remove only directories managed by Whyloom:
+
+```bash
+whyloom uninstall --platform copilot
+```
+
+Until the first PyPI release is available, install directly from GitHub:
+
+```bash
+uv tool install git+https://github.com/rafaelolsr/whyloom.git
+```
+
 ## Core workflow
 
 ```bash
@@ -48,7 +92,7 @@ whyloom index
 whyloom explain src/auth/token_service.py
 whyloom context "change refresh-token rotation"
 whyloom impact decisions/0007-token-storage.md
-whyloom reflect
+whyloom reflect --task-summary "describe the durable project learning"
 whyloom validate
 whyloom doctor
 ```

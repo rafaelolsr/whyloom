@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "whyloom"
-version = "0.3.0"
+version = "0.4.0"
 description = "Git-native, graph-backed project memory for humans and coding agents"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -18,6 +18,7 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
   "Topic :: Software Development :: Documentation",
 ]
+authors = [{ name = "Rafael Oliveira" }]
 dependencies = [
   "PyYAML>=6.0",
   "pydantic>=2.7",
@@ -29,6 +30,21 @@ dev = ["build>=1.2", "pytest>=8.0", "ruff>=0.9"]
 
 [project.scripts]
 whyloom = "whyloom.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/rafaelolsr/whyloom"
+Repository = "https://github.com/rafaelolsr/whyloom.git"
+Issues = "https://github.com/rafaelolsr/whyloom/issues"
+
+[tool.setuptools.data-files]
+"share/whyloom/skills/whyloom" = [
+  "skills/whyloom/SKILL.md",
+]
+"share/whyloom/skills/whyloom/agents" = ["skills/whyloom/agents/openai.yaml"]
+"share/whyloom/skills/whyloom-bootstrap" = [
+  "skills/whyloom-bootstrap/SKILL.md",
+]
+"share/whyloom/skills/whyloom-bootstrap/agents" = ["skills/whyloom-bootstrap/agents/openai.yaml"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

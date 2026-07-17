@@ -1,0 +1,13 @@
+{
+  "kind": "command",
+  "command": [
+    "/Users/rafael/Github/DataGeek/whyloom/.venv/bin/python",
+    "scripts/check_distribution.py",
+    "dist/whyloom-0.4.0-py3-none-any.whl"
+  ],
+  "exit_code": 0,
+  "stdout": "distribution valid: dist/whyloom-0.4.0-py3-none-any.whl\n",
+  "stderr": "",
+  "created_at": "2026-07-17T12:16:14.213Z",
+  "artifacts": []
+}

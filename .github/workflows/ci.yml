@@ -26,6 +26,8 @@ jobs:
       - run: python -m pytest -q
       - run: python -m build
         if: matrix.python-version == '3.11'
+      - run: python scripts/check_distribution.py dist/*.whl
+        if: matrix.python-version == '3.11'
       - run: whyloom index --json
         if: matrix.python-version == '3.11'
       - run: whyloom doctor --json

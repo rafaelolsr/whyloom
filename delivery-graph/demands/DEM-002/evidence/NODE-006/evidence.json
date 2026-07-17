@@ -1,0 +1,21 @@
+{
+  "node_id": "NODE-006",
+  "items": [
+    {
+      "id": "EVD-001",
+      "kind": "command",
+      "summary": "env PYTHONPATH=src /Users/rafael/Github/DataGeek/whyloom/.venv/bin/pytest -q tests/test_installer.py passed",
+      "satisfies": "Installer and CLI tests pass for global, project, conflict, update, and uninstall flows.",
+      "artifact": "artifacts/EVD-001-command.json",
+      "command": [
+        "env",
+        "PYTHONPATH=src",
+        "/Users/rafael/Github/DataGeek/whyloom/.venv/bin/pytest",
+        "-q",
+        "tests/test_installer.py"
+      ],
+      "exit_code": 0,
+      "created_at": "2026-07-17T12:16:14.022Z"
+    }
+  ]
+}

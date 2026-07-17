@@ -12,6 +12,7 @@ whyloom/
 ├── src/whyloom/
 │   ├── cli.py
 │   ├── bootstrap.py
+│   ├── installer.py
 │   ├── config.py
 │   ├── models.py
 │   ├── records.py
@@ -32,6 +33,11 @@ whyloom/
     ├── runner.py
     └── rubric.md
 ```
+
+The wheel installs the skill sources under `share/whyloom/skills/` inside the
+isolated tool environment. `whyloom install` copies from that immutable bundle
+into assistant-specific personal or project locations and adds an ownership
+marker used for safe updates and removal.
 
 ## Structure added to an adopted codebase
 

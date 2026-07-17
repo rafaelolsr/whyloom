@@ -1,6 +1,6 @@
 # Production-readiness contract
 
-Whyloom `0.3` is intended for real codebase pilots as a local CLI.
+Whyloom `0.4` is intended for real codebase pilots as a local CLI.
 
 ## Guarantees
 
@@ -16,6 +16,10 @@ Whyloom `0.3` is intended for real codebase pilots as a local CLI.
   records.
 - Bootstrap inference metadata remains non-governing until a human changes the
   record lifecycle status through normal Git review.
+- Skill installation is idempotent, marks owned directories, and refuses to
+  overwrite or remove unowned or symlinked skill directories.
+- Distribution artifacts bundle both skills for offline registration after the
+  Python package is installed.
 - `doctor` checks configuration, records, index presence, and validation state.
 - CI tests Python 3.11–3.13, builds distribution artifacts, self-indexes, runs
   doctor, and executes the comparison evaluation.
@@ -40,6 +44,7 @@ Run:
 uv run pytest -q
 uv run ruff check .
 uv build
+uv run python scripts/check_distribution.py dist/*.whl
 uv run whyloom index --json
 uv run whyloom validate --json
 uv run whyloom doctor --json

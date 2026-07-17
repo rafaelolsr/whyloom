@@ -1,0 +1,15 @@
+{
+  "kind": "command",
+  "command": [
+    "env",
+    "PYTHONPATH=src",
+    "/Users/rafael/Github/DataGeek/whyloom/.venv/bin/pytest",
+    "-q",
+    "tests/test_release_contract.py"
+  ],
+  "exit_code": 0,
+  "stdout": "..                                                                       [100%]\n2 passed in 0.01s\n",
+  "stderr": "",
+  "created_at": "2026-07-17T12:16:14.568Z",
+  "artifacts": []
+}

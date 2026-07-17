@@ -1,0 +1,14 @@
+{
+  "node_id": "NODE-009",
+  "items": [
+    {
+      "id": "EVD-001",
+      "kind": "manual",
+      "summary": "29 tests, Ruff, retrieval evals, wheel resource validation, Whyloom doctor, and both skill validators passed; Copilot install/uninstall dogfood passed.",
+      "satisfies": "Full tests, lint, build, skill validation, installer dogfood, and documentation checks pass.",
+      "result": "pass",
+      "artifact": "artifacts/EVD-001-whyloom-0.4.0-py3-none-any.whl",
+      "created_at": "2026-07-17T12:20:01.853Z"
+    }
+  ]
+}

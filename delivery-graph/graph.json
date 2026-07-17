@@ -5,8 +5,8 @@
     "status": "draft",
     "source": "local",
     "created_at": "2026-07-17T03:02:30.788Z",
-    "updated_at": "2026-07-17T03:11:18.416Z",
-    "rev": 25
+    "updated_at": "2026-07-17T12:20:02.066Z",
+    "rev": 43
   },
   "demands": [
     {
@@ -15,6 +15,15 @@
       "source": "User request",
       "summary": "Add a research-first bootstrap path that converts repository evidence into reviewable Whyloom proposals while preserving the lightweight ongoing feedback loop.",
       "outcome": "An agent can analyze an existing repository, map its implementation, and propose evidence-backed project reasoning for human review without treating inference as truth.",
+      "constraints": [],
+      "non_goals": []
+    },
+    {
+      "id": "DEM-002",
+      "title": "Install Whyloom and its skills with one command",
+      "source": "User request",
+      "summary": "Remove adoption friction through bundled skills, a cross-platform installer, Copilot-native paths, and trusted PyPI release automation.",
+      "outcome": "Users can install Whyloom from PyPI and safely register its skills for Codex, Claude, GitHub Copilot, or generic Agent Skills without manually copying files.",
       "constraints": [],
       "non_goals": []
     }
@@ -109,6 +118,74 @@
           "and Whyloom doctor."
         ]
       }
+    },
+    {
+      "id": "REQ-006",
+      "demand_id": "DEM-002",
+      "statement": "Install and uninstall bundled Whyloom skills safely across supported assistant platforms.",
+      "priority": "must",
+      "acceptance": [
+        "The CLI supports global and project installation for Codex",
+        "Claude",
+        "Copilot",
+        "and generic Agent Skills; it is idempotent and never overwrites unowned skill directories."
+      ],
+      "validation": {
+        "method": "manual-review",
+        "required_evidence": [
+          "Installer unit and CLI integration tests."
+        ]
+      }
+    },
+    {
+      "id": "REQ-007",
+      "demand_id": "DEM-002",
+      "statement": "Support official GitHub Copilot Agent Skills locations.",
+      "priority": "must",
+      "acceptance": [
+        "Copilot installs use .github/skills for projects and ~/.copilot/skills for users",
+        "and both Whyloom skills validate after installation."
+      ],
+      "validation": {
+        "method": "manual-review",
+        "required_evidence": [
+          "Copilot-specific path and installed-skill validation tests."
+        ]
+      }
+    },
+    {
+      "id": "REQ-008",
+      "demand_id": "DEM-002",
+      "statement": "Ship skill resources inside the Python distribution.",
+      "priority": "must",
+      "acceptance": [
+        "Built wheels contain both skills and an installed CLI can locate them without repository access."
+      ],
+      "validation": {
+        "method": "manual-review",
+        "required_evidence": [
+          "Wheel content inspection and installed-resource test."
+        ]
+      }
+    },
+    {
+      "id": "REQ-009",
+      "demand_id": "DEM-002",
+      "statement": "Prepare secure PyPI publishing and simple installation documentation.",
+      "priority": "must",
+      "acceptance": [
+        "A release workflow uses PyPI Trusted Publishing",
+        "package metadata links to GitHub",
+        "and README documents uv tool install whyloom plus skill registration."
+      ],
+      "validation": {
+        "method": "manual-review",
+        "required_evidence": [
+          "Workflow inspection",
+          "package build",
+          "and documentation review."
+        ]
+      }
     }
   ],
   "gaps": [],
@@ -124,6 +201,10 @@
     {
       "id": "TRK-validation-and-dogfood",
       "title": "Validation and dogfood"
+    },
+    {
+      "id": "TRK-distribution-and-installation",
+      "title": "Distribution and installation"
     }
   ],
   "nodes": [
@@ -238,6 +319,94 @@
           "Dogfood report, full tests, lint, package build, and doctor all pass."
         ],
         "evidence_path": "delivery-graph/demands/DEM-001/evidence/NODE-005/"
+      },
+      "sync": {
+        "linear_issue_id": null,
+        "ado_task_id": null
+      }
+    },
+    {
+      "id": "NODE-006",
+      "title": "Implement cross-platform skill installer",
+      "type": "implementation",
+      "track": "TRK-distribution-and-installation",
+      "requirement_ids": [
+        "REQ-006",
+        "REQ-007"
+      ],
+      "depends_on": [],
+      "status": "done",
+      "validation": {
+        "required": [
+          "Installer and CLI tests pass for global, project, conflict, update, and uninstall flows."
+        ],
+        "evidence_path": "delivery-graph/demands/DEM-002/evidence/NODE-006/"
+      },
+      "sync": {
+        "linear_issue_id": null,
+        "ado_task_id": null
+      }
+    },
+    {
+      "id": "NODE-007",
+      "title": "Bundle skills in Python distributions",
+      "type": "implementation",
+      "track": "TRK-distribution-and-installation",
+      "requirement_ids": [
+        "REQ-008"
+      ],
+      "depends_on": [],
+      "status": "done",
+      "validation": {
+        "required": [
+          "Wheel contains both complete skill directories and runtime discovery succeeds."
+        ],
+        "evidence_path": "delivery-graph/demands/DEM-002/evidence/NODE-007/"
+      },
+      "sync": {
+        "linear_issue_id": null,
+        "ado_task_id": null
+      }
+    },
+    {
+      "id": "NODE-008",
+      "title": "Add trusted PyPI release workflow and metadata",
+      "type": "implementation",
+      "track": "TRK-distribution-and-installation",
+      "requirement_ids": [
+        "REQ-009"
+      ],
+      "depends_on": [],
+      "status": "done",
+      "validation": {
+        "required": [
+          "Build succeeds and release workflow declares OIDC permissions and PyPI publish action."
+        ],
+        "evidence_path": "delivery-graph/demands/DEM-002/evidence/NODE-008/"
+      },
+      "sync": {
+        "linear_issue_id": null,
+        "ado_task_id": null
+      }
+    },
+    {
+      "id": "NODE-009",
+      "title": "Document and validate one-command adoption",
+      "type": "implementation",
+      "track": "TRK-validation-and-dogfood",
+      "requirement_ids": [
+        "REQ-006",
+        "REQ-007",
+        "REQ-008",
+        "REQ-009"
+      ],
+      "depends_on": [],
+      "status": "done",
+      "validation": {
+        "required": [
+          "Full tests, lint, build, skill validation, installer dogfood, and documentation checks pass."
+        ],
+        "evidence_path": "delivery-graph/demands/DEM-002/evidence/NODE-009/"
       },
       "sync": {
         "linear_issue_id": null,

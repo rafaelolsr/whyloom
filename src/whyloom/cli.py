@@ -12,6 +12,7 @@ from . import __version__
 from .bootstrap import bootstrap_project
 from .config import find_root, load_config
 from .indexer import index_project
+from .installer import AssistantPlatform, install_skills, uninstall_skills
 from .operations import doctor_project, init_project, reflect_project, validate_project
 from .retrieval import compact_context_packet, context_packet, explain_target, traverse
 from .store import GraphStore
@@ -70,6 +71,34 @@ def init_command(
         emit(init_project(root), as_json)
     except OSError as exc:
         fail("INIT001", str(exc), as_json)
+
+
+@app.command("install")
+def install_command(
+    platform: AssistantPlatform = typer.Option(AssistantPlatform.AUTO, "--platform", case_sensitive=False),
+    project_scope: bool = typer.Option(False, "--project", help="Install into the current project."),
+    root: Path = typer.Option(Path("."), "--root", help="Project root used by --project."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Register bundled Whyloom skills with supported AI assistants."""
+    try:
+        emit(install_skills(platform, project=project_scope, root=root), as_json)
+    except (OSError, ValueError) as exc:
+        fail("INSTALL001", str(exc), as_json)
+
+
+@app.command("uninstall")
+def uninstall_command(
+    platform: AssistantPlatform = typer.Option(AssistantPlatform.AUTO, "--platform", case_sensitive=False),
+    project_scope: bool = typer.Option(False, "--project", help="Remove project-scoped skills."),
+    root: Path = typer.Option(Path("."), "--root", help="Project root used by --project."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Remove only skill directories managed by Whyloom."""
+    try:
+        emit(uninstall_skills(platform, project=project_scope, root=root), as_json)
+    except (OSError, ValueError) as exc:
+        fail("INSTALL002", str(exc), as_json)
 
 
 @app.command("index")

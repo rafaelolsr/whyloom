@@ -1,0 +1,21 @@
+{
+  "node_id": "NODE-008",
+  "items": [
+    {
+      "id": "EVD-001",
+      "kind": "command",
+      "summary": "env PYTHONPATH=src /Users/rafael/Github/DataGeek/whyloom/.venv/bin/pytest -q tests/test_release_contract.py passed",
+      "satisfies": "Build succeeds and release workflow declares OIDC permissions and PyPI publish action.",
+      "artifact": "artifacts/EVD-001-command.json",
+      "command": [
+        "env",
+        "PYTHONPATH=src",
+        "/Users/rafael/Github/DataGeek/whyloom/.venv/bin/pytest",
+        "-q",
+        "tests/test_release_contract.py"
+      ],
+      "exit_code": 0,
+      "created_at": "2026-07-17T12:16:14.569Z"
+    }
+  ]
+}
