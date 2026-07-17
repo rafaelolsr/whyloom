@@ -64,6 +64,17 @@ whyloom install --platform agents
 whyloom install --platform copilot --project --root .
 ```
 
+For an existing repository, prepare project memory with one command:
+
+```bash
+whyloom onboard --root .
+```
+
+This initializes Whyloom, indexes the codebase, collects bounded evidence, and
+creates a pending onboarding request. The installed Whyloom skill detects that
+request and turns defensible findings into reviewable proposals; the user does
+not need to know a separate bootstrap prompt.
+
 | Platform | Personal skills | Project skills |
 |---|---|---|
 | Codex | `~/.codex/skills/` | `.agents/skills/` |
@@ -87,7 +98,7 @@ uv tool install git+https://github.com/rafaelolsr/whyloom.git
 ## Core workflow
 
 ```bash
-whyloom init
+whyloom onboard
 whyloom index
 whyloom explain src/auth/token_service.py
 whyloom context "change refresh-token rotation"
@@ -97,7 +108,8 @@ whyloom validate
 whyloom doctor
 ```
 
-- `init` adds the canonical project-memory structure.
+- `onboard` initializes an existing repository and prepares evidence for automatic agent review.
+- `init` adds only the canonical project-memory structure.
 - `index` extracts code structure and links it to project records.
 - `explain` answers what a path or symbol does and why it exists.
 - `context` builds a compact evidence bundle for a task.
@@ -106,15 +118,25 @@ whyloom doctor
 - `validate` detects broken links, stale records, and contradictory active constraints.
 - `doctor` verifies that configuration, records, index, and validation are ready.
 
-## Bootstrap an existing codebase
+## Onboard an existing codebase
 
-Use the separate bootstrap workflow when a repository has code but little reliable project reasoning:
+Run one command when a repository has code but little reliable project reasoning:
 
 ```bash
-whyloom bootstrap --root . --json
+whyloom onboard --root . --json
 ```
 
-This indexes the repository and writes a bounded evidence manifest plus a review report under `.whyloom/cache/bootstrap/`. It does not change canonical records. Invoke the portable `whyloom-bootstrap` skill to inspect that evidence and create proposed records with explicit confidence, citations, and open questions.
+This initializes and indexes the repository, writes a bounded evidence manifest,
+and records a pending agent request under `.whyloom/cache/bootstrap/`. The
+installed Whyloom skills detect the request, inspect the evidence, and create
+proposed records with explicit confidence, citations, and open questions. They
+then validate, re-index, and mark onboarding complete.
+
+Check the lifecycle at any time:
+
+```bash
+whyloom onboard --status --root . --json
+```
 
 Inferred rationale is never authoritative. A human must review it before changing its status to `accepted` or `implemented`.
 
@@ -143,7 +165,7 @@ The MVP includes:
 - typed links between records and implementation;
 - incremental local indexing;
 - full-text retrieval plus bounded graph traversal;
-- `init`, `index`, `explain`, `context`, `impact`, `reflect`, and `validate` commands;
+- `onboard`, `init`, `index`, `explain`, `context`, `impact`, `reflect`, and `validate` commands;
 - a portable Claude Code/Codex-style skill that invokes the CLI;
 - fixtures and an A/B evaluation against plain repository documentation.
 

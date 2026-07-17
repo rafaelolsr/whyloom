@@ -19,7 +19,7 @@ FIXTURE = Path(__file__).parent / "fixtures" / "sample_repo"
 def test_version_flag_works_without_command():
     result = CliRunner().invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert result.stdout.strip() == "0.4.0"
+    assert result.stdout.strip() == "0.5.0"
 
 
 def test_config_rejects_paths_outside_repository():

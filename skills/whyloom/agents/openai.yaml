@@ -1,4 +1,4 @@
 interface:
   display_name: "Whyloom"
-  short_description: "Recover project rationale before changing code"
-  default_prompt: "Use $whyloom to gather the decisions, constraints, and code context needed for this task."
+  short_description: "Recover project rationale and onboarding"
+  default_prompt: "Use $whyloom to gather project reasoning, resolve pending onboarding, and prepare this task safely."

@@ -18,7 +18,10 @@ evidence path so an agent can verify it before acting.
 
 - `install`: operation, project scope, and one result per platform and skill with destination and action.
 - `uninstall`: removes only Whyloom-owned skill directories and reports absent directories without error.
-- `index`: changed, unchanged, and removed sources plus diagnostics.
+- `index`: changed, unchanged, and removed sources plus diagnostics and current onboarding status.
+- `onboard`: initialization and bootstrap results plus a `pending`, `completed`,
+  `not_started`, or `invalid` onboarding lifecycle. `--complete` requires a
+  summary and valid project memory before closing a request.
 - `bootstrap`: index result, evidence coverage, generated manifest and report paths,
   truncation state, and `canonical_records_changed: false`.
 - `context`: task, governing records, files, evidence, warnings, and unresolved questions.

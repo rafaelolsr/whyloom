@@ -5,8 +5,8 @@
     "status": "draft",
     "source": "local",
     "created_at": "2026-07-17T03:02:30.788Z",
-    "updated_at": "2026-07-17T12:20:02.066Z",
-    "rev": 43
+    "updated_at": "2026-07-17T13:40:22.588Z",
+    "rev": 58
   },
   "demands": [
     {
@@ -24,6 +24,15 @@
       "source": "User request",
       "summary": "Remove adoption friction through bundled skills, a cross-platform installer, Copilot-native paths, and trusted PyPI release automation.",
       "outcome": "Users can install Whyloom from PyPI and safely register its skills for Codex, Claude, GitHub Copilot, or generic Agent Skills without manually copying files.",
+      "constraints": [],
+      "non_goals": []
+    },
+    {
+      "id": "DEM-003",
+      "title": "Onboard existing codebases without a bootstrap prompt",
+      "source": "User requested that bootstrap intent be injected into Whyloom instead of requiring a manual agent prompt.",
+      "summary": "Turn repository bootstrap into a discoverable one-command command-and-skill workflow.",
+      "outcome": "A single whyloom onboard command prepares evidence and a pending agent task that installed Whyloom skills detect and complete safely.",
       "constraints": [],
       "non_goals": []
     }
@@ -186,6 +195,87 @@
           "and documentation review."
         ]
       }
+    },
+    {
+      "id": "REQ-010",
+      "demand_id": "DEM-003",
+      "statement": "Onboard an uninitialized existing repository with one idempotent command.",
+      "priority": "must",
+      "acceptance": [
+        "whyloom onboard initializes Whyloom",
+        "indexes the repository",
+        "collects bounded evidence",
+        "and writes a machine-readable pending request without inventing canonical reasoning."
+      ],
+      "validation": {
+        "method": "manual-review",
+        "required_evidence": [
+          "Automated CLI and lifecycle tests pass."
+        ]
+      }
+    },
+    {
+      "id": "REQ-011",
+      "demand_id": "DEM-003",
+      "statement": "Expose and safely complete the onboarding lifecycle.",
+      "priority": "must",
+      "acceptance": [
+        "Index and onboarding status expose pending work; completion requires valid records",
+        "reindexes the graph",
+        "and preserves a reviewable completion result."
+      ],
+      "validation": {
+        "method": "manual-review",
+        "required_evidence": [
+          "Automated pending",
+          "rerun",
+          "failure",
+          "and completion tests pass."
+        ]
+      }
+    },
+    {
+      "id": "REQ-012",
+      "demand_id": "DEM-003",
+      "statement": "Make installed Whyloom skills consume pending onboarding automatically.",
+      "priority": "must",
+      "acceptance": [
+        "The regular and bootstrap skills check the pending request",
+        "generate evidence-backed proposed records",
+        "validate them",
+        "and complete onboarding without requiring the user to know a bootstrap prompt."
+      ],
+      "validation": {
+        "method": "manual-review",
+        "required_evidence": [
+          "Both skills validate and their instructions cover the full pending-request workflow."
+        ]
+      }
+    },
+    {
+      "id": "REQ-013",
+      "demand_id": "DEM-003",
+      "statement": "Ship and document the onboarding workflow as a tested release.",
+      "priority": "must",
+      "acceptance": [
+        "README",
+        "JSON contract",
+        "production checks",
+        "package version",
+        "wheel",
+        "and existing-codebase dogfood all reflect whyloom onboard."
+      ],
+      "validation": {
+        "method": "manual-review",
+        "required_evidence": [
+          "Full tests",
+          "lint",
+          "build",
+          "wheel checks",
+          "skill validation",
+          "and dogfood pass."
+        ]
+      }
     }
   ],
   "gaps": [],
@@ -205,6 +295,10 @@
     {
       "id": "TRK-distribution-and-installation",
       "title": "Distribution and installation"
+    },
+    {
+      "id": "TRK-onboarding-automation",
+      "title": "Onboarding automation"
     }
   ],
   "nodes": [
@@ -407,6 +501,73 @@
           "Full tests, lint, build, skill validation, installer dogfood, and documentation checks pass."
         ],
         "evidence_path": "delivery-graph/demands/DEM-002/evidence/NODE-009/"
+      },
+      "sync": {
+        "linear_issue_id": null,
+        "ado_task_id": null
+      }
+    },
+    {
+      "id": "NODE-010",
+      "title": "Implement onboard command and pending request lifecycle",
+      "type": "implementation",
+      "track": "TRK-onboarding-automation",
+      "requirement_ids": [
+        "REQ-010",
+        "REQ-011"
+      ],
+      "depends_on": [],
+      "status": "done",
+      "validation": {
+        "required": [
+          "Onboarding CLI and lifecycle tests pass."
+        ],
+        "evidence_path": "delivery-graph/demands/DEM-003/evidence/NODE-010/"
+      },
+      "sync": {
+        "linear_issue_id": null,
+        "ado_task_id": null
+      }
+    },
+    {
+      "id": "NODE-011",
+      "title": "Teach Whyloom skills to complete pending onboarding",
+      "type": "implementation",
+      "track": "TRK-onboarding-automation",
+      "requirement_ids": [
+        "REQ-012"
+      ],
+      "depends_on": [],
+      "status": "done",
+      "validation": {
+        "required": [
+          "Both portable skills validate and describe pending request handling."
+        ],
+        "evidence_path": "delivery-graph/demands/DEM-003/evidence/NODE-011/"
+      },
+      "sync": {
+        "linear_issue_id": null,
+        "ado_task_id": null
+      }
+    },
+    {
+      "id": "NODE-012",
+      "title": "Document dogfood and release onboarding workflow",
+      "type": "implementation",
+      "track": "TRK-onboarding-automation",
+      "requirement_ids": [
+        "REQ-010",
+        "REQ-011",
+        "REQ-012",
+        "REQ-013"
+      ],
+      "depends_on": [],
+      "status": "done",
+      "validation": {
+        "required": [
+          "Full tests, lint, build, wheel checks, skill validation, and existing-codebase dogfood pass."
+        ],
+        "evidence_path": "delivery-graph/demands/DEM-003/evidence/NODE-012/"
       },
       "sync": {
         "linear_issue_id": null,

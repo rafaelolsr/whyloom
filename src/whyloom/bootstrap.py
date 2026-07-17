@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -11,8 +12,12 @@ from typing import Any
 
 from .config import resolve_repository_path
 from .indexer import index_project
+from .operations import GLOSSARY, OVERVIEW, init_project, validate_project
+from .records import discover_records
 
 MANIFEST_VERSION = 1
+REQUEST_VERSION = 1
+REQUEST_RELATIVE_PATH = ".whyloom/cache/bootstrap/request.json"
 MAX_FILE_BYTES = 1_000_000
 EXCERPT_LIMIT = 240
 MAX_SCANNED_FILES = 20_000
@@ -211,7 +216,7 @@ def _render_report(evidence: list[BootstrapEvidence], truncated: bool) -> str:
             "",
             "## Next step",
             "",
-            "Run the `whyloom-bootstrap` skill to inspect this evidence, compare it with the code graph, and create reviewable records.",
+            "Installed Whyloom skills should inspect this evidence, compare it with the code graph, and create reviewable records when onboarding is pending.",
             "",
         ]
     )
@@ -223,6 +228,50 @@ def _atomic_write(path: Path, content: str) -> None:
     temporary = path.with_suffix(f"{path.suffix}.tmp")
     temporary.write_text(content, encoding="utf-8")
     temporary.replace(path)
+
+
+def _request_path(root: Path) -> Path:
+    return resolve_repository_path(root, REQUEST_RELATIVE_PATH)
+
+
+def _read_request(root: Path) -> dict[str, Any] | None:
+    path = _request_path(root)
+    if not path.exists():
+        return None
+    try:
+        request = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"invalid onboarding request: {path.relative_to(root)}") from exc
+    if not isinstance(request, dict) or request.get("request_version") != REQUEST_VERSION:
+        raise ValueError(f"unsupported onboarding request: {path.relative_to(root)}")
+    if request.get("status") not in {"pending", "completed"}:
+        raise ValueError(f"invalid onboarding status in {path.relative_to(root)}")
+    return request
+
+
+def onboarding_status(root: Path) -> dict[str, Any]:
+    root = root.resolve()
+    try:
+        request = _read_request(root)
+    except ValueError as exc:
+        return {"status": "invalid", "request": REQUEST_RELATIVE_PATH, "error": str(exc)}
+    if request is None:
+        return {"status": "not_started", "request": REQUEST_RELATIVE_PATH}
+    return {
+        "status": request["status"],
+        "request": REQUEST_RELATIVE_PATH,
+        "workflow": request.get("workflow", "whyloom-bootstrap"),
+        "evidence_manifest": request.get("evidence_manifest"),
+        "completion": request.get("completion"),
+    }
+
+
+def _canonical_memory_changed(root: Path, records_count: int) -> bool:
+    overview = root / ".whyloom" / "overview.md"
+    glossary = root / ".whyloom" / "glossary.md"
+    overview_changed = overview.is_file() and overview.read_text(encoding="utf-8") != OVERVIEW
+    glossary_changed = glossary.is_file() and glossary.read_text(encoding="utf-8") != GLOSSARY
+    return records_count > 0 or overview_changed or glossary_changed
 
 
 def bootstrap_project(root: Path, config: dict[str, Any], history_limit: int = 50, max_evidence: int = 500) -> dict[str, Any]:
@@ -262,5 +311,92 @@ def bootstrap_project(root: Path, config: dict[str, Any], history_limit: int = 5
         "manifest": manifest_path.relative_to(root).as_posix(),
         "report": report_path.relative_to(root).as_posix(),
         "canonical_records_changed": False,
-        "next_action": "Run the whyloom-bootstrap skill to create evidence-backed proposals for review.",
+        "next_action": "Repository evidence is ready for reviewable agent interpretation.",
+    }
+
+
+def onboard_project(
+    root: Path,
+    config: dict[str, Any],
+    history_limit: int = 50,
+    max_evidence: int = 500,
+    *,
+    force: bool = False,
+) -> dict[str, Any]:
+    root = root.resolve()
+    initialized = init_project(root)
+    bootstrap = bootstrap_project(root, config, history_limit, max_evidence)
+    if not bootstrap["bootstrapped"]:
+        return {"onboarded": False, "initialized": initialized, "bootstrap": bootstrap}
+
+    manifest_path = root / bootstrap["manifest"]
+    evidence_digest = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    existing = _read_request(root)
+    if existing and not force and existing.get("evidence_sha256") == evidence_digest:
+        action = "unchanged"
+        request = existing
+    else:
+        request = {
+            "request_version": REQUEST_VERSION,
+            "status": "pending",
+            "workflow": "whyloom-bootstrap",
+            "evidence_manifest": bootstrap["manifest"],
+            "report": bootstrap["report"],
+            "evidence_sha256": evidence_digest,
+            "canonical_records_changed": False,
+            "agent_actions": [
+                "Inspect the bounded evidence and relevant code graph.",
+                "Create only evidence-backed proposed Whyloom records.",
+                "Record confidence, citations, and open questions.",
+                "Run Whyloom validation and complete onboarding.",
+            ],
+        }
+        _atomic_write(_request_path(root), json.dumps(request, indent=2, sort_keys=True) + "\n")
+        action = "created" if existing is None else "refreshed"
+    return {
+        "onboarded": True,
+        "initialized": initialized,
+        "bootstrap": bootstrap,
+        "onboarding": {
+            "status": request["status"],
+            "request": REQUEST_RELATIVE_PATH,
+            "action": action,
+        },
+        "next_action": "Continue in the coding agent; an installed Whyloom skill should complete the pending onboarding request.",
+    }
+
+
+def complete_onboarding(root: Path, config: dict[str, Any], summary: str) -> dict[str, Any]:
+    root = root.resolve()
+    summary = " ".join(summary.split())
+    if not summary:
+        raise ValueError("completion summary must not be empty")
+    request = _read_request(root)
+    if request is None:
+        raise ValueError("no onboarding request exists; run whyloom onboard first")
+    if request["status"] == "completed":
+        return {"completed": True, "action": "unchanged", "onboarding": onboarding_status(root)}
+
+    validation = validate_project(root, config)
+    if not validation["valid"]:
+        raise ValueError("Whyloom records are invalid; run whyloom validate and resolve errors before completing onboarding")
+    records, _ = discover_records(root, config["records_dir"])
+    if not _canonical_memory_changed(root, len(records)):
+        raise ValueError("onboarding produced no project memory; update the overview, glossary, or proposed records first")
+
+    request["status"] = "completed"
+    request["canonical_records_changed"] = True
+    request["completion"] = {
+        "summary": summary,
+        "records": len(records),
+        "requires_human_review": any(record.status.value == "proposed" for record in records),
+    }
+    _atomic_write(_request_path(root), json.dumps(request, indent=2, sort_keys=True) + "\n")
+    index = index_project(root, config)
+    return {
+        "completed": True,
+        "action": "completed",
+        "onboarding": onboarding_status(root),
+        "validation": validation,
+        "index": index,
     }

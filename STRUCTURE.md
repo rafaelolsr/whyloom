@@ -55,7 +55,8 @@ target-project/
 │       ├── graph.sqlite
 │       └── bootstrap/
 │           ├── evidence.json
-│           └── report.md
+│           ├── report.md
+│           └── request.json
 ```
 
 The `.whyloom/` directory is the project-memory home. Records and templates are canonical and versioned; only `.whyloom/cache/` is generated locally and ignored by Git.
@@ -63,6 +64,10 @@ The `.whyloom/` directory is the project-memory home. Records and templates are 
 Bootstrap output under `.whyloom/cache/` is disposable discovery evidence. The skill
 writes inferred knowledge only to `.whyloom/proposals/`, with explicit confidence,
 evidence references, open questions, and `status: proposed`.
+
+`whyloom onboard` creates the pending request. Installed skills consume it,
+validate the resulting project memory, and close it with `whyloom onboard
+--complete`; `whyloom index` always reports the current lifecycle status.
 
 ## Initial graph model
 
@@ -183,7 +188,14 @@ Creates record directories, templates, configuration, and ignore rules. Safe to 
 
 ### `whyloom index`
 
-Builds or incrementally updates the local graph. Reports changed inputs, created relationships, warnings, and elapsed time.
+Builds or incrementally updates the local graph. Reports changed inputs, created relationships, warnings, elapsed time, and onboarding status.
+
+### `whyloom onboard`
+
+Initializes an existing repository, collects bounded bootstrap evidence, and
+creates an idempotent pending request for installed Whyloom skills. Status and
+completion modes expose and safely close the lifecycle without accepting
+agent-authored proposals automatically.
 
 ### `whyloom bootstrap`
 

@@ -1,4 +1,4 @@
 interface:
   display_name: "Whyloom Bootstrap"
-  short_description: "Recover evidence-backed project reasoning"
-  default_prompt: "Use $whyloom-bootstrap to analyze this existing repository and propose evidence-backed Whyloom records for review."
+  short_description: "Complete evidence-backed project onboarding"
+  default_prompt: "Use $whyloom-bootstrap to complete the pending Whyloom onboarding request with reviewable evidence-backed records."

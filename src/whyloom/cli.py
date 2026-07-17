@@ -9,7 +9,7 @@ import yaml
 from pydantic import ValidationError
 
 from . import __version__
-from .bootstrap import bootstrap_project
+from .bootstrap import bootstrap_project, complete_onboarding, onboard_project, onboarding_status
 from .config import find_root, load_config
 from .indexer import index_project
 from .installer import AssistantPlatform, install_skills, uninstall_skills
@@ -109,10 +109,40 @@ def index_command(
     resolved, config = project(root, as_json)
     try:
         payload = index_project(resolved, config)
+        payload["onboarding"] = onboarding_status(resolved)
     except (OSError, ValueError) as exc:
         fail("IDX002", str(exc), as_json)
     emit(payload, as_json)
     if not payload["indexed"]:
+        raise typer.Exit(code=1)
+
+
+@app.command("onboard")
+def onboard_command(
+    root: Path | None = typer.Option(None, "--root"),
+    history_limit: int = typer.Option(50, "--history-limit", min=0, max=500),
+    max_evidence: int = typer.Option(500, "--max-evidence", min=1, max=5_000),
+    complete: bool = typer.Option(False, "--complete", help="Validate and close a pending onboarding request."),
+    status: bool = typer.Option(False, "--status", help="Show the current onboarding status without changing it."),
+    summary: str | None = typer.Option(None, "--summary", help="Concise completion summary required by --complete."),
+    force: bool = typer.Option(False, "--force", help="Refresh an unchanged or completed onboarding request."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Prepare or complete evidence-backed onboarding for an existing repository."""
+    resolved, config = project(root, as_json)
+    if complete and status:
+        fail("ONBOARD001", "--complete and --status cannot be used together", as_json)
+    try:
+        if status:
+            payload = {"onboarding": onboarding_status(resolved)}
+        elif complete:
+            payload = complete_onboarding(resolved, config, summary or "")
+        else:
+            payload = onboard_project(resolved, config, history_limit, max_evidence, force=force)
+    except (OSError, ValueError) as exc:
+        fail("ONBOARD001", str(exc), as_json)
+    emit(payload, as_json)
+    if payload.get("onboarded") is False:
         raise typer.Exit(code=1)
 
 

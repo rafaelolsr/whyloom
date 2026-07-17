@@ -1,6 +1,6 @@
 ---
 name: whyloom-bootstrap
-description: Analyze an existing codebase and bootstrap evidence-backed Whyloom project memory. Use when onboarding a repository that lacks reliable architecture, decision, constraint, or glossary records; when reconstructing project intent from code, tests, configuration, documentation, and Git history; or when asked to initialize Whyloom without presenting inferred rationale as established truth.
+description: Complete evidence-backed Whyloom onboarding for an existing codebase. Use when `.whyloom/cache/bootstrap/request.json` is pending, when `whyloom onboard` prepared repository evidence, when a repository lacks reliable architecture, decision, constraint, or glossary records, or when reconstructing project intent without presenting inference as established truth.
 ---
 
 # Bootstrap Whyloom
@@ -10,17 +10,19 @@ Recover project reasoning as reviewable proposals. Treat code as evidence of wha
 ## Workflow
 
 1. Locate the repository root and read `AGENTS.md`, `CLAUDE.md`, or equivalent project instructions.
-2. Run `whyloom bootstrap --root <root> --json`.
-3. Read `.whyloom/cache/bootstrap/report.md` and `.whyloom/cache/bootstrap/evidence.json`.
-4. Query the indexed graph with `whyloom context` and `whyloom explain` for the main subsystems.
-5. Inspect the highest-signal source files, tests, configuration, documentation, and Git commits cited by the evidence manifest.
-6. Compare discoveries with existing records under `.whyloom/`. Do not duplicate or overwrite established reasoning.
-7. Create only the smallest useful set of canonical artifacts:
+2. Run `whyloom onboard --status --root <root> --json`.
+3. If status is `not_started`, run `whyloom onboard --root <root> --json`. If status is `completed`, stop unless the user explicitly requests a fresh onboarding run.
+4. Read `.whyloom/cache/bootstrap/request.json`, `report.md`, and `evidence.json`.
+5. Query the indexed graph with `whyloom context` and `whyloom explain` for the main subsystems.
+6. Inspect the highest-signal source files, tests, configuration, documentation, and Git commits cited by the evidence manifest.
+7. Compare discoveries with existing records under `.whyloom/`. Do not duplicate or overwrite established reasoning.
+8. Create only the smallest useful set of canonical artifacts:
    - `.whyloom/overview.md` for a repository orientation directly supported by evidence.
    - `.whyloom/glossary.md` for stable vocabulary found across multiple sources.
    - `.whyloom/proposals/inferred-*.md` for inferred architecture, decisions, or constraints.
-8. Run `whyloom validate`, then `whyloom index`.
-9. Report created proposals, evidence gaps, open questions, and the human decisions required next.
+9. Run `whyloom validate --root <root> --json`.
+10. Run `whyloom onboard --complete --summary "<concise result>" --root <root> --json` to re-index and close the pending request.
+11. Report created proposals, evidence gaps, open questions, and the human decisions required next.
 
 ## Proposal contract
 

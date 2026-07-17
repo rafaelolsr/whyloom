@@ -1,6 +1,6 @@
 # Production-readiness contract
 
-Whyloom `0.4` is intended for real codebase pilots as a local CLI.
+Whyloom `0.5` is intended for real codebase pilots as a local CLI.
 
 ## Guarantees
 
@@ -16,6 +16,9 @@ Whyloom `0.4` is intended for real codebase pilots as a local CLI.
   records.
 - Bootstrap inference metadata remains non-governing until a human changes the
   record lifecycle status through normal Git review.
+- Onboarding is idempotent, records a machine-readable pending request, exposes
+  that lifecycle through indexing, and refuses completion until valid project
+  memory exists.
 - Skill installation is idempotent, marks owned directories, and refuses to
   overwrite or remove unowned or symlinked skill directories.
 - Distribution artifacts bundle both skills for offline registration after the
