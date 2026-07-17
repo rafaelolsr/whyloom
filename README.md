@@ -78,7 +78,7 @@ agent mode in VS Code. To remove only directories managed by Whyloom:
 whyloom uninstall --platform copilot
 ```
 
-Until the first PyPI release is available, install directly from GitHub:
+To test the latest unreleased development version instead:
 
 ```bash
 uv tool install git+https://github.com/rafaelolsr/whyloom.git
