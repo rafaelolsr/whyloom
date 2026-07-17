@@ -1,5 +1,7 @@
 # Whyloom
 
+![Whyloom weaves code, decisions, constraints, and history into a living project-memory graph](docs/assets/whyloom-hero.png)
+
 > Your codebase remembers why.
 
 Whyloom is a Git-native, graph-backed project memory for a single codebase. It connects implementation facts to the decisions, constraints, rejected alternatives, and operational lessons that explain them, then gives humans and coding agents fast, task-specific context.
