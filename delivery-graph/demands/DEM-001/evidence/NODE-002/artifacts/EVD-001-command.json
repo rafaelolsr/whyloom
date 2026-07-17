@@ -1,0 +1,16 @@
+{
+  "kind": "command",
+  "command": [
+    "env",
+    "PYTHONPATH=src",
+    "/Users/rafael/Github/DataGeek/whyloom/.venv/bin/pytest",
+    "-q",
+    "tests/test_bootstrap.py::test_bootstrap_collects_bounded_evidence_without_changing_records",
+    "tests/test_bootstrap.py::test_bootstrap_is_deterministic_for_unchanged_repository"
+  ],
+  "exit_code": 0,
+  "stdout": "..                                                                       [100%]\n2 passed in 0.64s\n",
+  "stderr": "",
+  "created_at": "2026-07-17T03:07:45.590Z",
+  "artifacts": []
+}

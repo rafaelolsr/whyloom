@@ -1,0 +1,13 @@
+{
+  "kind": "command",
+  "command": [
+    "python3",
+    "/Users/rafael/.codex/skills/.system/skill-creator/scripts/quick_validate.py",
+    "skills/whyloom-bootstrap"
+  ],
+  "exit_code": 0,
+  "stdout": "Skill is valid!\n",
+  "stderr": "",
+  "created_at": "2026-07-17T03:07:46.887Z",
+  "artifacts": []
+}

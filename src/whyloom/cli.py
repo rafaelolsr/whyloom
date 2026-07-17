@@ -9,6 +9,7 @@ import yaml
 from pydantic import ValidationError
 
 from . import __version__
+from .bootstrap import bootstrap_project
 from .config import find_root, load_config
 from .indexer import index_project
 from .operations import doctor_project, init_project, reflect_project, validate_project
@@ -83,6 +84,24 @@ def index_command(
         fail("IDX002", str(exc), as_json)
     emit(payload, as_json)
     if not payload["indexed"]:
+        raise typer.Exit(code=1)
+
+
+@app.command("bootstrap")
+def bootstrap_command(
+    root: Path | None = typer.Option(None, "--root"),
+    history_limit: int = typer.Option(50, "--history-limit", min=0, max=500),
+    max_evidence: int = typer.Option(500, "--max-evidence", min=1, max=5_000),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Collect bounded repository evidence for proposal-only onboarding."""
+    resolved, config = project(root, as_json)
+    try:
+        payload = bootstrap_project(resolved, config, history_limit, max_evidence)
+    except (OSError, ValueError) as exc:
+        fail("BOOT001", str(exc), as_json)
+    emit(payload, as_json)
+    if not payload["bootstrapped"]:
         raise typer.Exit(code=1)
 
 

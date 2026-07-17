@@ -30,6 +30,28 @@ class RecordStatus(StrEnum):
 GOVERNING_STATUSES = {RecordStatus.ACCEPTED, RecordStatus.IMPLEMENTED}
 
 
+class InferenceConfidence(StrEnum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class RecordEvidence(BaseModel):
+    kind: str
+    source: str
+    summary: str
+
+    @field_validator("kind", "source", "summary")
+    @classmethod
+    def bounded_text(cls, value: str) -> str:
+        normalized = " ".join(value.split())
+        if not normalized:
+            raise ValueError("evidence fields must not be empty")
+        if len(normalized) > 500:
+            raise ValueError("evidence fields must be at most 500 characters")
+        return normalized
+
+
 class ProjectRecord(BaseModel):
     id: str
     type: RecordType
@@ -39,6 +61,9 @@ class ProjectRecord(BaseModel):
     targets: list[str] = Field(default_factory=list)
     constraints: list[str] = Field(default_factory=list)
     supersedes: list[str] = Field(default_factory=list)
+    confidence: InferenceConfidence | None = None
+    evidence: list[RecordEvidence] = Field(default_factory=list)
+    open_questions: list[str] = Field(default_factory=list)
     body: str = ""
     path: Path
     source_hash: str
@@ -70,6 +95,14 @@ class ProjectRecord(BaseModel):
         if any(not re.fullmatch(r"[A-Z][A-Z0-9_-]*", value) for value in normalized):
             raise ValueError("record references must use stable record ids")
         return normalized
+
+    @field_validator("open_questions")
+    @classmethod
+    def normalized_questions(cls, values: list[str]) -> list[str]:
+        questions = [" ".join(value.split()) for value in values]
+        if any(not value or len(value) > 500 for value in questions):
+            raise ValueError("open questions must contain 1 to 500 characters")
+        return questions
 
 
 class GraphNode(BaseModel):

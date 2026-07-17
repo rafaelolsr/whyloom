@@ -8,6 +8,11 @@ description: Retrieve and verify a codebase's recorded decisions, constraints, a
 Use Whyloom as a pre-flight check for project meaning. Prefer cited canonical
 records over guesses from code shape or chat history.
 
+If an existing repository has no reliable Whyloom records yet, stop this
+workflow and invoke `$whyloom-bootstrap`. Return here after its inferred records
+have been reviewed; do not use the ongoing reflection loop to fabricate an
+initial project history.
+
 ## Gather context before changing code
 
 1. Find the repository root containing `whyloom.yaml`.

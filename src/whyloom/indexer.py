@@ -26,6 +26,9 @@ def _record_graph(record: ProjectRecord, root: Path) -> tuple[list[GraphNode], l
             "targets": record.targets,
             "constraints": record.constraints,
             "supersedes": record.supersedes,
+            "confidence": record.confidence.value if record.confidence else None,
+            "evidence": [item.model_dump() for item in record.evidence],
+            "open_questions": record.open_questions,
         },
     )
     edges: list[GraphEdge] = []

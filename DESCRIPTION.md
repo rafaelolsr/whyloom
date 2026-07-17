@@ -30,6 +30,14 @@ Given a decision, constraint, file, or symbol, identify connected implementation
 
 After an agent or human completes work, produce reviewable proposals for decisions, constraints, incident lessons, or supersession links discovered during the task.
 
+### Bootstrap an existing codebase
+
+Index the configured source graph, collect bounded evidence from documentation,
+tests, configuration, dependencies, rationale comments, and local Git history,
+then let an agent propose a small set of confidence-labeled records for human
+review. Evidence describes what can be observed; inferred intent never becomes
+authoritative automatically.
+
 ### Protect the source of truth
 
 Validate record schemas, targets, lifecycle status, broken links, conflicting active constraints, and likely drift between records and the current code.
@@ -100,6 +108,7 @@ Only accepted or implemented records govern normal retrieval by default. Other s
 - provide a stable CLI and JSON output;
 - ship a portable skill for Claude Code and Codex-style agents;
 - keep a future MCP adapter possible without coupling the core to a specific agent.
+- ship a separate `whyloom-bootstrap` skill for one-time existing-repository onboarding.
 
 ## MVP user journey
 
@@ -122,4 +131,3 @@ Only accepted or implemented records govern normal retrieval by default. Other s
 - cloud synchronization, permissions, billing, or collaboration UI;
 - embedding every file by default;
 - generating a complete knowledge graph before returning value.
-

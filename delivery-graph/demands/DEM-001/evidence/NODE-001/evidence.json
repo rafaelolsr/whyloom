@@ -1,0 +1,21 @@
+{
+  "node_id": "NODE-001",
+  "items": [
+    {
+      "id": "EVD-001",
+      "kind": "command",
+      "summary": "env PYTHONPATH=src /Users/rafael/Github/DataGeek/whyloom/.venv/bin/pytest -q tests/test_bootstrap.py::test_inferred_record_metadata_is_indexed_as_non_governing passed",
+      "satisfies": "Focused model, parser, and indexing tests pass.",
+      "artifact": "artifacts/EVD-001-command.json",
+      "command": [
+        "env",
+        "PYTHONPATH=src",
+        "/Users/rafael/Github/DataGeek/whyloom/.venv/bin/pytest",
+        "-q",
+        "tests/test_bootstrap.py::test_inferred_record_metadata_is_indexed_as_non_governing"
+      ],
+      "exit_code": 0,
+      "created_at": "2026-07-17T03:07:37.894Z"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "kind": "command",
+  "command": [
+    "env",
+    "PYTHONPATH=src",
+    "/Users/rafael/Github/DataGeek/whyloom/.venv/bin/pytest",
+    "-q",
+    "tests/test_bootstrap.py::test_bootstrap_cli_emits_machine_readable_contract"
+  ],
+  "exit_code": 0,
+  "stdout": ".                                                                        [100%]\n1 passed in 0.52s\n",
+  "stderr": "",
+  "created_at": "2026-07-17T03:07:46.639Z",
+  "artifacts": []
+}

@@ -17,6 +17,8 @@ evidence path so an agent can verify it before acting.
 ## Command guarantees
 
 - `index`: changed, unchanged, and removed sources plus diagnostics.
+- `bootstrap`: index result, evidence coverage, generated manifest and report paths,
+  truncation state, and `canonical_records_changed: false`.
 - `context`: task, governing records, files, evidence, warnings, and unresolved questions.
   With `--compact`, evidence is reduced to governing record references and file paths.
 - `explain`: target resolution, governing records, related code, evidence, and knowledge gaps.
@@ -27,3 +29,8 @@ evidence path so an agent can verify it before acting.
 
 Generated graph data is evidence, not authority. Cite the canonical record or
 source path when using a result to justify a change.
+
+Bootstrap evidence uses `id`, `kind`, `source`, `locator`, and `summary`. The
+manifest always declares `authoritative: false`. Inferred canonical records may
+add `confidence`, structured `evidence`, and `open_questions`, but remain
+non-governing while their status is `proposed`.

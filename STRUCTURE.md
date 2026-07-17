@@ -11,6 +11,7 @@ whyloom/
 ├── pyproject.toml
 ├── src/whyloom/
 │   ├── cli.py
+│   ├── bootstrap.py
 │   ├── config.py
 │   ├── models.py
 │   ├── records.py
@@ -20,7 +21,9 @@ whyloom/
 │   ├── indexer.py
 │   ├── retrieval.py
 │   └── operations.py
-├── skills/whyloom/SKILL.md
+├── skills/
+│   ├── whyloom/SKILL.md
+│   └── whyloom-bootstrap/SKILL.md
 ├── tests/
 │   ├── fixtures/
 │   └── test_*.py
@@ -43,10 +46,16 @@ target-project/
 │   └── glossary.md
 └── .whyloom/
     ├── graph.sqlite
-    └── cache/
+    └── bootstrap/
+        ├── evidence.json
+        └── report.md
 ```
 
 The `whyloom/` directory is canonical and versioned. `.whyloom/` is generated locally and ignored by Git.
+
+Bootstrap output under `.whyloom/` is disposable discovery evidence. The skill
+writes inferred knowledge only to `whyloom/proposals/`, with explicit confidence,
+evidence references, open questions, and `status: proposed`.
 
 ## Initial graph model
 
@@ -168,6 +177,11 @@ Creates record directories, templates, configuration, and ignore rules. Safe to 
 ### `whyloom index`
 
 Builds or incrementally updates the local graph. Reports changed inputs, created relationships, warnings, and elapsed time.
+
+### `whyloom bootstrap`
+
+Indexes the configured source graph and emits a bounded, deterministic evidence
+manifest plus a review report. It never creates or updates canonical records.
 
 ### `whyloom explain <target>`
 

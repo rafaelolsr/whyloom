@@ -1,0 +1,248 @@
+{
+  "graph": {
+    "id": "DGE-001",
+    "title": "Bootstrap existing codebases into Whyloom",
+    "status": "draft",
+    "source": "local",
+    "created_at": "2026-07-17T03:02:30.788Z",
+    "updated_at": "2026-07-17T03:11:18.416Z",
+    "rev": 25
+  },
+  "demands": [
+    {
+      "id": "DEM-001",
+      "title": "Onboard existing codebases into evidence-backed project memory",
+      "source": "User request",
+      "summary": "Add a research-first bootstrap path that converts repository evidence into reviewable Whyloom proposals while preserving the lightweight ongoing feedback loop.",
+      "outcome": "An agent can analyze an existing repository, map its implementation, and propose evidence-backed project reasoning for human review without treating inference as truth.",
+      "constraints": [],
+      "non_goals": []
+    }
+  ],
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "demand_id": "DEM-001",
+      "statement": "Collect bounded evidence from source code, tests, configuration, documentation, dependency manifests, and local Git history.",
+      "priority": "must",
+      "acceptance": [
+        "A bootstrap run emits a deterministic manifest that identifies evidence by kind and source locator without copying sensitive repository contents wholesale."
+      ],
+      "validation": {
+        "method": "manual-review",
+        "required_evidence": [
+          "Automated fixture test covering every supported evidence class."
+        ]
+      }
+    },
+    {
+      "id": "REQ-002",
+      "demand_id": "DEM-001",
+      "statement": "Represent inferred project reasoning as proposals with explicit confidence and evidence references.",
+      "priority": "must",
+      "acceptance": [
+        "Bootstrap-created records remain proposed",
+        "carry confidence and evidence metadata",
+        "and are never promoted automatically."
+      ],
+      "validation": {
+        "method": "manual-review",
+        "required_evidence": [
+          "Schema and indexing tests for proposed inference metadata."
+        ]
+      }
+    },
+    {
+      "id": "REQ-003",
+      "demand_id": "DEM-001",
+      "statement": "Produce an actionable bootstrap report for human or agent review.",
+      "priority": "must",
+      "acceptance": [
+        "The report summarizes coverage",
+        "evidence gaps",
+        "candidate investigation areas",
+        "and the review boundary."
+      ],
+      "validation": {
+        "method": "manual-review",
+        "required_evidence": [
+          "CLI integration test and dogfood report."
+        ]
+      }
+    },
+    {
+      "id": "REQ-004",
+      "demand_id": "DEM-001",
+      "statement": "Provide a portable whyloom-bootstrap skill for Claude Code and Codex-style agents.",
+      "priority": "must",
+      "acceptance": [
+        "The skill follows collect",
+        "inspect",
+        "infer",
+        "propose",
+        "validate",
+        "and report steps and requires evidence-backed human review."
+      ],
+      "validation": {
+        "method": "manual-review",
+        "required_evidence": [
+          "Skill validator passes and skill instructions are exercised against Whyloom."
+        ]
+      }
+    },
+    {
+      "id": "REQ-005",
+      "demand_id": "DEM-001",
+      "statement": "Preserve Whyloom production safety and deterministic behavior.",
+      "priority": "must",
+      "acceptance": [
+        "Existing tests remain green",
+        "generated bootstrap artifacts stay outside canonical records",
+        "and invalid records cannot partially update the graph."
+      ],
+      "validation": {
+        "method": "manual-review",
+        "required_evidence": [
+          "Full automated test suite",
+          "lint",
+          "build",
+          "and Whyloom doctor."
+        ]
+      }
+    }
+  ],
+  "gaps": [],
+  "tracks": [
+    {
+      "id": "TRK-bootstrap-core",
+      "title": "Bootstrap core"
+    },
+    {
+      "id": "TRK-agent-integration",
+      "title": "Agent integration"
+    },
+    {
+      "id": "TRK-validation-and-dogfood",
+      "title": "Validation and dogfood"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "NODE-001",
+      "title": "Add bootstrap evidence and proposal metadata model",
+      "type": "implementation",
+      "track": "TRK-bootstrap-core",
+      "requirement_ids": [
+        "REQ-001",
+        "REQ-002",
+        "REQ-005"
+      ],
+      "depends_on": [],
+      "status": "done",
+      "validation": {
+        "required": [
+          "Focused model, parser, and indexing tests pass."
+        ],
+        "evidence_path": "delivery-graph/demands/DEM-001/evidence/NODE-001/"
+      },
+      "sync": {
+        "linear_issue_id": null,
+        "ado_task_id": null
+      }
+    },
+    {
+      "id": "NODE-002",
+      "title": "Implement repository evidence collection and bootstrap report",
+      "type": "implementation",
+      "track": "TRK-bootstrap-core",
+      "requirement_ids": [
+        "REQ-001",
+        "REQ-003",
+        "REQ-005"
+      ],
+      "depends_on": [],
+      "status": "done",
+      "validation": {
+        "required": [
+          "Fixture integration test proves bounded evidence coverage and report generation."
+        ],
+        "evidence_path": "delivery-graph/demands/DEM-001/evidence/NODE-002/"
+      },
+      "sync": {
+        "linear_issue_id": null,
+        "ado_task_id": null
+      }
+    },
+    {
+      "id": "NODE-003",
+      "title": "Expose bootstrap through the Whyloom CLI",
+      "type": "implementation",
+      "track": "TRK-agent-integration",
+      "requirement_ids": [
+        "REQ-001",
+        "REQ-003",
+        "REQ-005"
+      ],
+      "depends_on": [],
+      "status": "done",
+      "validation": {
+        "required": [
+          "CLI tests cover human and JSON output without mutating canonical records."
+        ],
+        "evidence_path": "delivery-graph/demands/DEM-001/evidence/NODE-003/"
+      },
+      "sync": {
+        "linear_issue_id": null,
+        "ado_task_id": null
+      }
+    },
+    {
+      "id": "NODE-004",
+      "title": "Create the portable whyloom-bootstrap skill",
+      "type": "implementation",
+      "track": "TRK-agent-integration",
+      "requirement_ids": [
+        "REQ-002",
+        "REQ-003",
+        "REQ-004"
+      ],
+      "depends_on": [],
+      "status": "done",
+      "validation": {
+        "required": [
+          "Skill quick validation passes and instructions enforce proposal-only inference."
+        ],
+        "evidence_path": "delivery-graph/demands/DEM-001/evidence/NODE-004/"
+      },
+      "sync": {
+        "linear_issue_id": null,
+        "ado_task_id": null
+      }
+    },
+    {
+      "id": "NODE-005",
+      "title": "Dogfood bootstrap and complete production validation",
+      "type": "implementation",
+      "track": "TRK-validation-and-dogfood",
+      "requirement_ids": [
+        "REQ-001",
+        "REQ-002",
+        "REQ-003",
+        "REQ-004",
+        "REQ-005"
+      ],
+      "depends_on": [],
+      "status": "done",
+      "validation": {
+        "required": [
+          "Dogfood report, full tests, lint, package build, and doctor all pass."
+        ],
+        "evidence_path": "delivery-graph/demands/DEM-001/evidence/NODE-005/"
+      },
+      "sync": {
+        "linear_issue_id": null,
+        "ado_task_id": null
+      }
+    }
+  ]
+}

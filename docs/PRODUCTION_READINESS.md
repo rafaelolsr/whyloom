@@ -1,6 +1,6 @@
 # Production-readiness contract
 
-Whyloom `0.2` is intended for real codebase pilots as a local CLI.
+Whyloom `0.3` is intended for real codebase pilots as a local CLI.
 
 ## Guarantees
 
@@ -11,6 +11,11 @@ Whyloom `0.2` is intended for real codebase pilots as a local CLI.
 - SQLite uses a busy timeout and WAL mode for normal concurrent readers.
 - Schema and index-format versions migrate storage and force semantic reindexing after extractor changes.
 - Reflection includes tracked and untracked changed files and always proposes.
+- Bootstrap scans at most 20,000 files, stores at most the configured evidence
+  limit, skips generated and dependency directories, and never edits canonical
+  records.
+- Bootstrap inference metadata remains non-governing until a human changes the
+  record lifecycle status through normal Git review.
 - `doctor` checks configuration, records, index presence, and validation state.
 - CI tests Python 3.11–3.13, builds distribution artifacts, self-indexes, runs
   doctor, and executes the comparison evaluation.
@@ -18,6 +23,9 @@ Whyloom `0.2` is intended for real codebase pilots as a local CLI.
 ## Explicit limits
 
 - Python is the only code extractor.
+- Bootstrap discovers documentation, tests, configuration, dependencies,
+  rationale comments, and Git subjects across common repository layouts, but
+  semantic inference is performed by the portable skill rather than the CLI.
 - Whyloom is scoped to one repository and one local SQLite index.
 - Retrieval is lexical plus graph traversal; embeddings are not included.
 - The evidence packet is advisory and must be verified against cited files.

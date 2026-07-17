@@ -1,0 +1,22 @@
+{
+  "node_id": "NODE-002",
+  "items": [
+    {
+      "id": "EVD-001",
+      "kind": "command",
+      "summary": "env PYTHONPATH=src /Users/rafael/Github/DataGeek/whyloom/.venv/bin/pytest -q tests/test_bootstrap.py::test_bootstrap_collects_bounded_evidence_without_changing_records tests/test_bootstrap.py::test_bootstrap_is_deterministic_for_unchanged_repository passed",
+      "satisfies": "Fixture integration test proves bounded evidence coverage and report generation.",
+      "artifact": "artifacts/EVD-001-command.json",
+      "command": [
+        "env",
+        "PYTHONPATH=src",
+        "/Users/rafael/Github/DataGeek/whyloom/.venv/bin/pytest",
+        "-q",
+        "tests/test_bootstrap.py::test_bootstrap_collects_bounded_evidence_without_changing_records",
+        "tests/test_bootstrap.py::test_bootstrap_is_deterministic_for_unchanged_repository"
+      ],
+      "exit_code": 0,
+      "created_at": "2026-07-17T03:07:45.591Z"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "node_id": "NODE-005",
+  "items": [
+    {
+      "id": "EVD-001",
+      "kind": "manual",
+      "summary": "Whyloom dogfood collected 62 bounded evidence items including local Git history without changing canonical records; 20 tests, Ruff, package build, record validation, doctor, skill validation, and 4 evaluation cases passed.",
+      "satisfies": "Dogfood report, full tests, lint, package build, and doctor all pass.",
+      "result": "pass",
+      "artifact": "artifacts/EVD-001-report.md",
+      "created_at": "2026-07-17T03:11:03.896Z"
+    }
+  ]
+}

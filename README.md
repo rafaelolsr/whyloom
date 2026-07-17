@@ -60,6 +60,18 @@ whyloom doctor
 - `validate` detects broken links, stale records, and contradictory active constraints.
 - `doctor` verifies that configuration, records, index, and validation are ready.
 
+## Bootstrap an existing codebase
+
+Use the separate bootstrap workflow when a repository has code but little reliable project reasoning:
+
+```bash
+whyloom bootstrap --root . --json
+```
+
+This indexes the repository and writes a bounded evidence manifest plus a review report under `.whyloom/bootstrap/`. It does not change canonical records. Invoke the portable `whyloom-bootstrap` skill to inspect that evidence and create proposed records with explicit confidence, citations, and open questions.
+
+Inferred rationale is never authoritative. A human must review it before changing its status to `accepted` or `implemented`.
+
 ## Trust model
 
 Whyloom separates implementation truth from project intent:
