@@ -11,14 +11,14 @@ Recover project reasoning as reviewable proposals. Treat code as evidence of wha
 
 1. Locate the repository root and read `AGENTS.md`, `CLAUDE.md`, or equivalent project instructions.
 2. Run `whyloom bootstrap --root <root> --json`.
-3. Read `.whyloom/bootstrap/report.md` and `.whyloom/bootstrap/evidence.json`.
+3. Read `.whyloom/cache/bootstrap/report.md` and `.whyloom/cache/bootstrap/evidence.json`.
 4. Query the indexed graph with `whyloom context` and `whyloom explain` for the main subsystems.
 5. Inspect the highest-signal source files, tests, configuration, documentation, and Git commits cited by the evidence manifest.
-6. Compare discoveries with existing records under `whyloom/`. Do not duplicate or overwrite established reasoning.
+6. Compare discoveries with existing records under `.whyloom/`. Do not duplicate or overwrite established reasoning.
 7. Create only the smallest useful set of canonical artifacts:
-   - `whyloom/overview.md` for a repository orientation directly supported by evidence.
-   - `whyloom/glossary.md` for stable vocabulary found across multiple sources.
-   - `whyloom/proposals/inferred-*.md` for inferred architecture, decisions, or constraints.
+   - `.whyloom/overview.md` for a repository orientation directly supported by evidence.
+   - `.whyloom/glossary.md` for stable vocabulary found across multiple sources.
+   - `.whyloom/proposals/inferred-*.md` for inferred architecture, decisions, or constraints.
 8. Run `whyloom validate`, then `whyloom index`.
 9. Report created proposals, evidence gaps, open questions, and the human decisions required next.
 

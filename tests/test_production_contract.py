@@ -56,7 +56,7 @@ def test_read_command_does_not_create_missing_index(tmp_path):
 def test_invalid_record_aborts_before_database_write(tmp_path):
     root = tmp_path / "repo"
     shutil.copytree(FIXTURE, root)
-    record = root / "whyloom" / "decisions" / "0001-token-storage.md"
+    record = root / ".whyloom" / "decisions" / "0001-token-storage.md"
     record.write_text(record.read_text(encoding="utf-8").replace("id: DEC-0001", "id: '../escape'"), encoding="utf-8")
     result = index_project(root, DEFAULT_CONFIG)
     assert not result["indexed"]
@@ -67,7 +67,7 @@ def test_invalid_record_aborts_before_database_write(tmp_path):
 def test_index_honors_include_and_exclude_patterns(tmp_path):
     root = tmp_path / "repo"
     (root / "src").mkdir(parents=True)
-    (root / "whyloom").mkdir()
+    (root / ".whyloom").mkdir()
     (root / "src" / "keep.py").write_text("def keep():\n    return True\n", encoding="utf-8")
     (root / "src" / "ignore.py").write_text("def ignore():\n    return True\n", encoding="utf-8")
     config = {**DEFAULT_CONFIG, "include": ["src/*.py"], "exclude": ["src/ignore.py"]}

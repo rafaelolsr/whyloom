@@ -24,7 +24,8 @@ def flat_search(root: Path, task: str, limit: int = 8) -> dict:
     started = time.perf_counter()
     matches = []
     for path in [*root.rglob("*.md"), *root.rglob("*.py")]:
-        if any(part in {".whyloom", ".git", ".venv"} for part in path.parts):
+        relative_parts = path.relative_to(root).parts
+        if any(part in {".git", ".venv"} for part in relative_parts) or relative_parts[:2] == (".whyloom", "cache"):
             continue
         body = path.read_text(encoding="utf-8")
         score = len(query & terms(f"{path.as_posix()} {body}"))

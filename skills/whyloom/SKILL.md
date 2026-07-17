@@ -52,6 +52,6 @@ agent's own authority.
 - Prefer accepted or implemented records for governing intent.
 - Preserve record IDs and source paths in the response.
 - Distinguish explicit record links from inferred code relationships.
-- Treat `.whyloom/graph.sqlite` as a cache, never as canonical truth.
+- Treat `.whyloom/cache/graph.sqlite` as a cache, never as canonical truth.
 - Do not request or store private chain-of-thought; capture concise rationale,
   evidence, alternatives, and consequences.

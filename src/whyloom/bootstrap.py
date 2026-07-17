@@ -240,7 +240,7 @@ def bootstrap_project(root: Path, config: dict[str, Any], history_limit: int = 5
     evidence.extend(_git_evidence(root, history_limit, len(evidence) + 1, remaining))
     truncated = len(evidence) >= max_evidence or scan_truncated
     counts = Counter(item.kind for item in evidence)
-    generated_dir = resolve_repository_path(root, ".whyloom/bootstrap")
+    generated_dir = resolve_repository_path(root, ".whyloom/cache/bootstrap")
     manifest_path = generated_dir / "evidence.json"
     report_path = generated_dir / "report.md"
     payload = {

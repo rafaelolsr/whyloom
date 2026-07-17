@@ -67,7 +67,7 @@ Only accepted or implemented records govern normal retrieval by default. Other s
 
 ### Initialization
 
-- add a standard `whyloom/` record directory and templates;
+- add a standard `.whyloom/` project-memory directory and templates;
 - add local generated-state paths to `.gitignore`;
 - avoid overwriting existing project files;
 - produce a valid starter overview and configuration.

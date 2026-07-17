@@ -60,7 +60,7 @@ def test_bootstrap_collects_bounded_evidence_without_changing_records(tmp_path):
 
     assert result["bootstrapped"]
     assert result["canonical_records_changed"] is False
-    assert not (root / "whyloom").exists()
+    assert not (root / ".whyloom" / "overview.md").exists()
     expected = {"documentation", "test", "configuration", "dependency", "git-history", "rationale-comment"}
     assert expected <= set(result["coverage"])
     manifest = json.loads((root / result["manifest"]).read_text(encoding="utf-8"))
@@ -89,13 +89,13 @@ def test_bootstrap_cli_emits_machine_readable_contract(tmp_path):
     payload = json.loads(result.stdout)
     assert payload["schema_version"] == 1
     assert payload["bootstrapped"] is True
-    assert payload["manifest"] == ".whyloom/bootstrap/evidence.json"
+    assert payload["manifest"] == ".whyloom/cache/bootstrap/evidence.json"
     assert payload["canonical_records_changed"] is False
 
 
 def test_inferred_record_metadata_is_indexed_as_non_governing(tmp_path):
     root = tmp_path / "repo"
-    proposal = root / "whyloom" / "proposals" / "inferred-architecture.md"
+    proposal = root / ".whyloom" / "proposals" / "inferred-architecture.md"
     proposal.parent.mkdir(parents=True)
     (root / "src").mkdir()
     (root / "src" / "service.py").write_text("def service():\n    return True\n", encoding="utf-8")

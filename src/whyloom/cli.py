@@ -185,9 +185,9 @@ def reflect_command(
     root: Path | None = typer.Option(None, "--root"),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
-    resolved, _ = project(root, as_json)
+    resolved, config = project(root, as_json)
     diff_text = diff_file.read_text(encoding="utf-8") if diff_file else None
-    emit(reflect_project(resolved, task_summary, diff_text), as_json)
+    emit(reflect_project(resolved, task_summary, diff_text, config["records_dir"]), as_json)
 
 
 if __name__ == "__main__":

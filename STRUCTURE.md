@@ -37,24 +37,25 @@ whyloom/
 
 ```text
 target-project/
-├── whyloom/
+├── .whyloom/
 │   ├── overview.md
 │   ├── architecture/
 │   ├── decisions/
 │   ├── constraints/
 │   ├── incidents/
-│   └── glossary.md
-└── .whyloom/
-    ├── graph.sqlite
-    └── bootstrap/
-        ├── evidence.json
-        └── report.md
+│   ├── glossary.md
+│   ├── templates/
+│   └── cache/
+│       ├── graph.sqlite
+│       └── bootstrap/
+│           ├── evidence.json
+│           └── report.md
 ```
 
-The `whyloom/` directory is canonical and versioned. `.whyloom/` is generated locally and ignored by Git.
+The `.whyloom/` directory is the project-memory home. Records and templates are canonical and versioned; only `.whyloom/cache/` is generated locally and ignored by Git.
 
-Bootstrap output under `.whyloom/` is disposable discovery evidence. The skill
-writes inferred knowledge only to `whyloom/proposals/`, with explicit confidence,
+Bootstrap output under `.whyloom/cache/` is disposable discovery evidence. The skill
+writes inferred knowledge only to `.whyloom/proposals/`, with explicit confidence,
 evidence references, open questions, and `status: proposed`.
 
 ## Initial graph model

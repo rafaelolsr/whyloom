@@ -68,7 +68,7 @@ Use the separate bootstrap workflow when a repository has code but little reliab
 whyloom bootstrap --root . --json
 ```
 
-This indexes the repository and writes a bounded evidence manifest plus a review report under `.whyloom/bootstrap/`. It does not change canonical records. Invoke the portable `whyloom-bootstrap` skill to inspect that evidence and create proposed records with explicit confidence, citations, and open questions.
+This indexes the repository and writes a bounded evidence manifest plus a review report under `.whyloom/cache/bootstrap/`. It does not change canonical records. Invoke the portable `whyloom-bootstrap` skill to inspect that evidence and create proposed records with explicit confidence, citations, and open questions.
 
 Inferred rationale is never authoritative. A human must review it before changing its status to `accepted` or `implemented`.
 

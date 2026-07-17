@@ -1,11 +1,11 @@
 version: 1
-records_dir: whyloom
-database: .whyloom/graph.sqlite
+records_dir: .whyloom
+database: .whyloom/cache/graph.sqlite
 include:
   - "**/*.py"
 exclude:
   - ".git/**"
-  - ".whyloom/**"
+  - ".whyloom/cache/**"
   - ".venv/**"
   - "build/**"
   - "dist/**"

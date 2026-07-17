@@ -11,11 +11,11 @@ class WhyloomConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     version: Literal[1] = 1
-    records_dir: str = "whyloom"
-    database: str = ".whyloom/graph.sqlite"
+    records_dir: str = ".whyloom"
+    database: str = ".whyloom/cache/graph.sqlite"
     include: list[str] = Field(default_factory=lambda: ["**/*.py"])
     exclude: list[str] = Field(
-        default_factory=lambda: [".git/**", ".whyloom/**", ".venv/**", "build/**", "dist/**"]
+        default_factory=lambda: [".git/**", ".whyloom/cache/**", ".venv/**", "build/**", "dist/**"]
     )
     max_depth: int = Field(default=2, ge=0, le=5)
     max_items: int = Field(default=20, ge=1, le=200)
@@ -59,7 +59,11 @@ def find_root(start: Path | None = None) -> Path:
     if current.is_file():
         current = current.parent
     for candidate in (current, *current.parents):
-        if (candidate / "whyloom.yaml").is_file() or (candidate / "whyloom").is_dir():
+        if (
+            (candidate / "whyloom.yaml").is_file()
+            or (candidate / ".whyloom").is_dir()
+            or (candidate / "whyloom").is_dir()
+        ):
             return candidate
     return current
 

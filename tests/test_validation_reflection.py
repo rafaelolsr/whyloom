@@ -28,7 +28,7 @@ def test_validation_and_reflection(tmp_path):
 def test_validation_fails_for_broken_target(tmp_path):
     root = tmp_path / "repo"
     shutil.copytree(FIXTURE, root)
-    record = root / "whyloom" / "constraints" / "0001-no-token-storage.md"
+    record = root / ".whyloom" / "constraints" / "0001-no-token-storage.md"
     record.write_text(record.read_text(encoding="utf-8").replace("src/sample/auth.py", "missing.py"), encoding="utf-8")
     result = validate_project(root, DEFAULT_CONFIG)
     assert not result["valid"]
@@ -38,8 +38,8 @@ def test_validation_fails_for_broken_target(tmp_path):
 def test_validation_detects_supersession_cycle(tmp_path):
     root = tmp_path / "repo"
     shutil.copytree(FIXTURE, root)
-    decision = root / "whyloom" / "decisions" / "0001-token-storage.md"
-    constraint = root / "whyloom" / "constraints" / "0001-no-token-storage.md"
+    decision = root / ".whyloom" / "decisions" / "0001-token-storage.md"
+    constraint = root / ".whyloom" / "constraints" / "0001-no-token-storage.md"
     decision.write_text(decision.read_text(encoding="utf-8").replace("supersedes: []", "supersedes: [CON-0001]"), encoding="utf-8")
     constraint.write_text(constraint.read_text(encoding="utf-8").replace("supersedes: []", "supersedes: [DEC-0001]"), encoding="utf-8")
     result = validate_project(root, DEFAULT_CONFIG)

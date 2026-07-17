@@ -91,18 +91,23 @@ def init_project(root: Path) -> dict:
     created: list[str] = []
     skipped: list[str] = []
     for directory in ("architecture", "decisions", "constraints", "incidents"):
-        (root / "whyloom" / directory).mkdir(parents=True, exist_ok=True)
-    _write_new(root / "whyloom" / "overview.md", OVERVIEW, created, skipped)
-    _write_new(root / "whyloom" / "glossary.md", GLOSSARY, created, skipped)
+        (root / ".whyloom" / directory).mkdir(parents=True, exist_ok=True)
+    _write_new(root / ".whyloom" / "overview.md", OVERVIEW, created, skipped)
+    _write_new(root / ".whyloom" / "glossary.md", GLOSSARY, created, skipped)
     _write_new(root / "whyloom.yaml", yaml.safe_dump(DEFAULT_CONFIG, sort_keys=False), created, skipped)
     today = date.today().isoformat()
     _write_new(root / ".whyloom" / "templates" / "decision.md", DECISION_TEMPLATE.format(date=today), created, skipped)
     _write_new(root / ".whyloom" / "templates" / "constraint.md", CONSTRAINT_TEMPLATE.format(date=today), created, skipped)
     ignore = root / ".gitignore"
     existing = ignore.read_text(encoding="utf-8") if ignore.exists() else ""
-    if ".whyloom/" not in existing.splitlines():
+    lines = existing.splitlines()
+    if ".whyloom/" in lines:
+        migrated = [".whyloom/cache/" if line == ".whyloom/" else line for line in lines]
+        ignore.write_text("\n".join(migrated) + "\n", encoding="utf-8")
+        created.append(ignore.as_posix())
+    elif ".whyloom/cache/" not in lines:
         prefix = "" if not existing or existing.endswith("\n") else "\n"
-        ignore.write_text(existing + prefix + ".whyloom/\n", encoding="utf-8")
+        ignore.write_text(existing + prefix + ".whyloom/cache/\n", encoding="utf-8")
         created.append(ignore.as_posix())
     else:
         skipped.append(ignore.as_posix())
@@ -209,7 +214,12 @@ def doctor_project(root: Path, config: dict) -> dict:
     }
 
 
-def reflect_project(root: Path, task_summary: str, diff_text: str | None = None) -> dict:
+def reflect_project(
+    root: Path,
+    task_summary: str,
+    diff_text: str | None = None,
+    records_dir: str = ".whyloom",
+) -> dict:
     root = root.resolve()
     status_text = ""
     warnings: list[str] = []
@@ -257,7 +267,7 @@ def reflect_project(root: Path, task_summary: str, diff_text: str | None = None)
             changed_paths.append(entry[3:])
     stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S-%f")
     proposal_id = f"PROP-{stamp}"
-    path = root / "whyloom" / "proposals" / f"{proposal_id.lower()}.md"
+    path = root / records_dir / "proposals" / f"{proposal_id.lower()}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     metadata = {
         "id": proposal_id,

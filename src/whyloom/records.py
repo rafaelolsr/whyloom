@@ -30,7 +30,7 @@ def parse_record(path: Path, root: Path) -> ProjectRecord:
     )
 
 
-def discover_records(root: Path, records_dir: str = "whyloom") -> tuple[list[ProjectRecord], list[Diagnostic]]:
+def discover_records(root: Path, records_dir: str = ".whyloom") -> tuple[list[ProjectRecord], list[Diagnostic]]:
     records: list[ProjectRecord] = []
     diagnostics: list[Diagnostic] = []
     base = root / records_dir
@@ -44,6 +44,9 @@ def discover_records(root: Path, records_dir: str = "whyloom") -> tuple[list[Pro
     if not base.exists():
         return records, diagnostics
     for path in sorted(base.rglob("*.md")):
+        relative = path.relative_to(base)
+        if relative.parts and relative.parts[0] in {"cache", "templates"}:
+            continue
         text = path.read_text(encoding="utf-8")
         if not text.startswith("---\n"):
             continue
