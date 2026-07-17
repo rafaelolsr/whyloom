@@ -1,0 +1,13 @@
+version: 1
+records_dir: whyloom
+database: .whyloom/graph.sqlite
+include:
+  - "**/*.py"
+exclude:
+  - ".git/**"
+  - ".whyloom/**"
+  - ".venv/**"
+  - "build/**"
+  - "dist/**"
+max_depth: 2
+max_items: 20

@@ -1,0 +1,27 @@
+[
+  {
+    "id": "context-storage",
+    "task": "change token storage without exposing credentials",
+    "expected_records": ["DEC-0001", "CON-0001"],
+    "expected_targets": ["src/sample/auth.py"]
+  },
+  {
+    "id": "explain-auth",
+    "task": "explain why src/sample/auth.py exists",
+    "expected_records": ["DEC-0001"],
+    "expected_targets": ["src/sample/auth.py"]
+  },
+  {
+    "id": "impact-constraint",
+    "task": "what is affected by CON-0001",
+    "expected_records": ["CON-0001"],
+    "expected_targets": ["src/sample/auth.py"]
+  },
+  {
+    "id": "unrelated-task",
+    "task": "change the report renderer",
+    "expected_records": [],
+    "expected_targets": []
+  }
+]
+
