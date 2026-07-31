@@ -52,6 +52,44 @@ def test_phase2_language_extraction(tmp_path, suffix, source, expected):
     assert not any(d.severity == "error" for d in extraction.diagnostics)
 
 
+@pytest.mark.skipif(not _grammar_available(".ts"), reason="tree-sitter TypeScript grammar not installed")
+def test_typescript_cross_file_resolution(tmp_path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "helpers.ts").write_text(
+        "export function issueToken(user: string) { return user; }\nexport class Base {}\n", encoding="utf-8"
+    )
+    (tmp_path / "src" / "main.ts").write_text(
+        'import { issueToken, Base } from "./helpers";\n'
+        "export class TokenService extends Base {\n"
+        "  rotate(user: string) { return issueToken(user); }\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    index_project(tmp_path, DEFAULT_CONFIG)
+    with GraphStore(tmp_path / ".whyloom" / "cache" / "graph.sqlite", create=False) as store:
+        edges = {
+            (row["source"], row["target"], row["type"])
+            for row in store.connection.execute(
+                "SELECT source, target, type FROM edges WHERE type IN ('CALLS', 'INHERITS')"
+            ).fetchall()
+        }
+    assert ("symbol:src/main.ts:rotate", "symbol:src/helpers.ts:issueToken", "CALLS") in edges
+    assert ("symbol:src/main.ts:TokenService", "symbol:src/helpers.ts:Base", "INHERITS") in edges
+
+
+@pytest.mark.skipif(not _grammar_available(".go"), reason="tree-sitter Go grammar not installed")
+def test_go_cross_file_calls(tmp_path):
+    (tmp_path / "helpers.go").write_text("package main\nfunc IssueToken(u string) string { return u }\n", encoding="utf-8")
+    (tmp_path / "main.go").write_text("package main\nfunc Rotate(u string) string { return IssueToken(u) }\n", encoding="utf-8")
+    index_project(tmp_path, DEFAULT_CONFIG)
+    with GraphStore(tmp_path / ".whyloom" / "cache" / "graph.sqlite", create=False) as store:
+        calls = {
+            (row["source"], row["target"])
+            for row in store.connection.execute("SELECT source, target FROM edges WHERE type = 'CALLS'").fetchall()
+        }
+    assert ("symbol:main.go:Rotate", "symbol:helpers.go:IssueToken") in calls
+
+
 def test_all_registered_suffixes_have_globs():
     from whyloom.config import DEFAULT_INCLUDE_PATTERNS
 

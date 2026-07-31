@@ -81,6 +81,10 @@ class TreeSitterGrammar:
     symbol_nodes: dict[str, str]
     import_nodes: tuple[str, ...] = ()
     name_fields: tuple[str, ...] = ("name",)
+    # Node types whose leading identifier names a called symbol, and node types
+    # that name a base type. These drive within-language cross-file resolution.
+    call_nodes: tuple[str, ...] = ()
+    inherit_nodes: tuple[str, ...] = ()
 
 
 # Phase 1 ships TypeScript/JavaScript; Phase 2 languages slot in as more rows.
@@ -94,6 +98,8 @@ TREE_SITTER_GRAMMARS: dict[str, TreeSitterGrammar] = {
             "class_declaration": "class",
         },
         import_nodes=("import_statement",),
+        call_nodes=("call_expression",),
+        inherit_nodes=("extends_clause",),
     ),
     ".tsx": TreeSitterGrammar(
         "typescript",
@@ -104,6 +110,8 @@ TREE_SITTER_GRAMMARS: dict[str, TreeSitterGrammar] = {
             "class_declaration": "class",
         },
         import_nodes=("import_statement",),
+        call_nodes=("call_expression",),
+        inherit_nodes=("extends_clause",),
     ),
     ".js": TreeSitterGrammar(
         "javascript",
@@ -114,6 +122,8 @@ TREE_SITTER_GRAMMARS: dict[str, TreeSitterGrammar] = {
             "class_declaration": "class",
         },
         import_nodes=("import_statement",),
+        call_nodes=("call_expression",),
+        inherit_nodes=("extends_clause",),
     ),
     ".jsx": TreeSitterGrammar(
         "javascript",
@@ -124,6 +134,8 @@ TREE_SITTER_GRAMMARS: dict[str, TreeSitterGrammar] = {
             "class_declaration": "class",
         },
         import_nodes=("import_statement",),
+        call_nodes=("call_expression",),
+        inherit_nodes=("extends_clause",),
     ),
     ".go": TreeSitterGrammar(
         "go",
@@ -134,6 +146,7 @@ TREE_SITTER_GRAMMARS: dict[str, TreeSitterGrammar] = {
             "type_spec": "type",  # inner spec carries the name; type_declaration does not
         },
         import_nodes=("import_declaration",),
+        call_nodes=("call_expression",),
     ),
     ".rs": TreeSitterGrammar(
         "rust",
@@ -147,6 +160,7 @@ TREE_SITTER_GRAMMARS: dict[str, TreeSitterGrammar] = {
             # references a type. Emitting it would produce nameless symbols.
         },
         import_nodes=("use_declaration",),
+        call_nodes=("call_expression",),
     ),
     ".java": TreeSitterGrammar(
         "java",
@@ -158,6 +172,8 @@ TREE_SITTER_GRAMMARS: dict[str, TreeSitterGrammar] = {
             "constructor_declaration": "constructor",
         },
         import_nodes=("import_declaration",),
+        call_nodes=("method_invocation",),
+        inherit_nodes=("superclass",),
     ),
     ".cs": TreeSitterGrammar(
         "c_sharp",
@@ -169,6 +185,8 @@ TREE_SITTER_GRAMMARS: dict[str, TreeSitterGrammar] = {
             "method_declaration": "method",
         },
         import_nodes=("using_directive",),
+        call_nodes=("invocation_expression",),
+        inherit_nodes=("base_list",),
     ),
 }
 
@@ -247,11 +265,12 @@ class TreeSitterAdapter:
             return Extraction(rel, digest, grammar.language, nodes, edges, diagnostics)
 
         imports: list[str] = []
-        self._walk(tree.root_node, source, grammar, rel, digest, file_id, nodes, edges, imports)
+        node_by_id: dict[str, GraphNode] = {file_id: nodes[0]}
+        self._walk(tree.root_node, source, grammar, rel, digest, file_id, nodes, edges, imports, node_by_id)
         nodes[0].data["imports"] = imports
         return Extraction(rel, digest, grammar.language, nodes, edges, diagnostics)
 
-    def _walk(self, node, source, grammar, rel, digest, file_id, nodes, edges, imports, parent_id=None):
+    def _walk(self, node, source, grammar, rel, digest, file_id, nodes, edges, imports, node_by_id, parent_id=None):
         parent_id = parent_id or file_id
         current_parent = parent_id
         node_type = node.type
@@ -260,24 +279,24 @@ class TreeSitterAdapter:
             if name:
                 symbol_id = f"symbol:{rel}:{name}"
                 line = node.start_point[0] + 1
-                nodes.append(
-                    GraphNode(
-                        id=symbol_id,
-                        type="Symbol",
-                        label=name,
-                        path=rel,
-                        source_path=rel,
-                        source_hash=digest,
-                        data={
-                            "kind": grammar.symbol_nodes[node_type],
-                            "line": line,
-                            "end_line": node.end_point[0] + 1,
-                            "calls": [],
-                            "bases": [],
-                            "references": [],
-                        },
-                    )
+                symbol = GraphNode(
+                    id=symbol_id,
+                    type="Symbol",
+                    label=name,
+                    path=rel,
+                    source_path=rel,
+                    source_hash=digest,
+                    data={
+                        "kind": grammar.symbol_nodes[node_type],
+                        "line": line,
+                        "end_line": node.end_point[0] + 1,
+                        "calls": [],
+                        "bases": [],
+                        "references": [],
+                    },
                 )
+                nodes.append(symbol)
+                node_by_id[symbol_id] = symbol
                 edges.append(
                     GraphEdge(
                         source=parent_id,
@@ -291,11 +310,23 @@ class TreeSitterAdapter:
                     )
                 )
                 current_parent = symbol_id
+                # Base types declared on this symbol (extends / superclass / base_list).
+                # The clause may be nested (e.g. class_heritage > extends_clause),
+                # so search descendants but stop before the symbol's own body.
+                for inherit_node in self._find_inherit_nodes(node, grammar):
+                    for base in self._identifiers(inherit_node, source):
+                        symbol.data["bases"].append(base)
         elif node_type in grammar.import_nodes:
             text = source[node.start_byte : node.end_byte].decode("utf-8", "replace")
             imports.append(" ".join(text.split()))
+        elif node_type in grammar.call_nodes and current_parent in node_by_id:
+            callee = self._call_target(node, source)
+            if callee:
+                node_by_id[current_parent].data["calls"].append(
+                    {"target": callee, "line": node.start_point[0] + 1}
+                )
         for child in node.children:
-            self._walk(child, source, grammar, rel, digest, file_id, nodes, edges, imports, current_parent)
+            self._walk(child, source, grammar, rel, digest, file_id, nodes, edges, imports, node_by_id, current_parent)
 
     @staticmethod
     def _name(node, source, grammar) -> str | None:
@@ -305,9 +336,103 @@ class TreeSitterAdapter:
                 return source[child.start_byte : child.end_byte].decode("utf-8", "replace")
         return None
 
+    @staticmethod
+    def _call_target(node, source) -> str | None:
+        """Return the callee identifier of a call node, taking the final name of
+        a member access (``a.b.c`` -> ``c``) to match by symbol name."""
+        function = node.child_by_field_name("function") or (node.children[0] if node.children else None)
+        if function is None:
+            return None
+        text = source[function.start_byte : function.end_byte].decode("utf-8", "replace")
+        return text.split(".")[-1].split("::")[-1].strip() or None
+
+    @staticmethod
+    def _find_inherit_nodes(symbol_node, grammar) -> list:
+        """Find inheritance-clause nodes for a symbol, descending through wrapper
+        nodes (class_heritage) but never into a nested body/block."""
+        found = []
+
+        def visit(current):
+            if current.type in grammar.inherit_nodes:
+                found.append(current)
+                return
+            if current.type.endswith(("_body", "block", "declaration_list")):
+                return
+            for child in current.children:
+                visit(child)
+
+        for child in symbol_node.children:
+            visit(child)
+        return found
+
+    @staticmethod
+    def _identifiers(node, source) -> list[str]:
+        """Collect bare type identifiers under an inheritance node."""
+        found: list[str] = []
+
+        def visit(current):
+            if current.type in {"type_identifier", "identifier"} and current.child_count == 0:
+                found.append(source[current.start_byte : current.end_byte].decode("utf-8", "replace"))
+            for child in current.children:
+                visit(child)
+
+        visit(node)
+        return found
+
     def resolve_project(self, extractions: list[Extraction]) -> list[GraphEdge]:
-        # Within-language cross-file resolution is Phase 3; none for now.
-        return []
+        """Within-language cross-file resolution by symbol name.
+
+        Calls and base types are linked to same-language symbols with matching
+        names. Because grammar-level extraction does not track import aliases,
+        matches are INFERRED and lose confidence when a name is ambiguous across
+        files. Whyloom's provenance model surfaces exactly this uncertainty."""
+        by_name: dict[str, list[str]] = {}
+        for extraction in extractions:
+            for node in extraction.nodes:
+                if node.type == "Symbol":
+                    by_name.setdefault(node.label, []).append(node.id)
+
+        edges: list[GraphEdge] = []
+        seen: set[tuple[str, str, str, str]] = set()
+
+        def link(source_id: str, name: str, edge_type: str, path: str, line: int) -> None:
+            targets = by_name.get(name)
+            if not targets:
+                return
+            # Prefer a target in another file; skip pure self-references.
+            candidates = [t for t in targets if t != source_id] or targets
+            if not candidates:
+                return
+            target = candidates[0]
+            confidence = 0.9 if len(candidates) == 1 else round(1.0 / len(candidates), 2)
+            evidence = f"{path}:{line}"
+            key = (source_id, target, edge_type, evidence)
+            if key in seen:
+                return
+            seen.add(key)
+            edges.append(
+                GraphEdge(
+                    source=source_id,
+                    target=target,
+                    type=edge_type,
+                    origin="tree-sitter-project-resolver",
+                    provenance="INFERRED",
+                    evidence=evidence,
+                    confidence=confidence,
+                    source_path="@tree-sitter-project",
+                    source_hash="",
+                )
+            )
+
+        for extraction in extractions:
+            for node in extraction.nodes:
+                if node.type != "Symbol":
+                    continue
+                for call in node.data.get("calls", []):
+                    link(node.id, call["target"], "CALLS", extraction.path, call.get("line", node.data.get("line", 1)))
+                for base in node.data.get("bases", []):
+                    link(node.id, base, "INHERITS", extraction.path, node.data.get("line", 1))
+        return edges
 
 
 @dataclass

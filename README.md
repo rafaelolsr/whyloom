@@ -4,14 +4,14 @@
 
 # Whyloom
 
-**Your codebase remembers why.** *A Git-native, graph-backed project memory that links code to the decisions, constraints, and rejected alternatives that explain it — then hands agents fast, task-specific context.*
+**Your codebase remembers why.** *Trusted project memory for coding agents — a deterministic code-knowledge graph that links every file and symbol to the decisions, constraints, and rejected alternatives that explain it, and serves fast, task-specific, auditable context.*
 
 [![CI](https://github.com/rafaelolsr/whyloom/actions/workflows/ci.yml/badge.svg)](https://github.com/rafaelolsr/whyloom/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/whyloom.svg)](https://pypi.org/project/whyloom/)
 [![Python](https://img.shields.io/pypi/pyversions/whyloom.svg)](https://pypi.org/project/whyloom/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Works with **Claude Code · Codex · GitHub Copilot · Agent Skills** — one deterministic CLI, portable skills, a tiny dependency surface, and nothing that leaves your machine.
+Works with **Claude Code · Codex · GitHub Copilot · Agent Skills** — one deterministic CLI, portable skills, a tiny dependency surface, and nothing that leaves your machine. Indexes **Python, TypeScript, JavaScript, Go, Rust, Java, and C#**. No LLM in the pipeline; runs on any folder, with or without Git.
 
 [Install](#install) · [Core workflow](#core-workflow) · [Onboard a codebase](#onboard-an-existing-codebase) · [Trust model](#trust-model) · [How it works](STRUCTURE.md) · [Docs](#repository-documents)
 
@@ -21,7 +21,9 @@ Works with **Claude Code · Codex · GitHub Copilot · Agent Skills** — one de
 
 ## What is Whyloom?
 
-Whyloom is a Git-native, graph-backed project memory for a single codebase. It connects implementation facts to the decisions, constraints, rejected alternatives, and operational lessons that explain them, then gives humans and coding agents fast, task-specific context.
+Whyloom is trusted project memory for a codebase. It builds a deterministic, multi-language knowledge graph of your files and symbols, then links that implementation to the decisions, constraints, rejected alternatives, and operational lessons that explain it — so humans and coding agents get fast, task-specific context they can audit and rely on.
+
+The graph is the engine; governed rationale is the point. Whyloom's defining feature is that nothing an LLM inferred becomes authoritative until a human accepts it in review — the map is generated automatically, but the *why* is trusted only after human sign-off. It runs on any folder and uses Git to enrich evidence when a repository is present, but Git is not required.
 
 ## The problem
 
@@ -42,11 +44,11 @@ Long context windows and semantic search do not solve this reliably. They can re
 
 Whyloom maintains two connected forms of project knowledge:
 
-1. **Canonical project records in Git** — concise Markdown records for decisions, constraints, architecture, incidents, and terminology.
-2. **A generated local graph** — files, symbols, configuration keys, structural
-   communities, records, and typed relationships indexed for fast, bounded traversal.
+1. **Canonical project records** — concise Markdown records for decisions, constraints, architecture, incidents, and terminology, versioned alongside your code.
+2. **A generated local graph** — files and symbols across seven languages, configuration keys, structural
+   communities, records, and typed cross-file relationships (calls, imports, inheritance) indexed for fast, bounded traversal.
 
-The repository remains the source of truth. The graph is disposable and can always be rebuilt.
+Your source files and records remain the source of truth. The graph is a disposable cache and can always be rebuilt.
 
 ```text
 Code + project records
@@ -107,6 +109,18 @@ agent mode in VS Code. To remove only directories managed by Whyloom:
 whyloom uninstall --platform copilot
 ```
 
+Python works out of the box. To index the other languages, add the matching
+tree-sitter grammar extra (they stay optional so the base install remains tiny
+and offline):
+
+```bash
+uv tool install "whyloom[languages]"                 # all supported grammars
+uv tool install "whyloom[typescript,go]"             # or pick specific ones
+```
+
+Without a grammar installed, files in that language are still recorded, with a
+`LANG002` note that symbol extraction was skipped.
+
 To test the latest unreleased development version instead:
 
 ```bash
@@ -121,6 +135,7 @@ whyloom index
 whyloom explain src/auth/token_service.py
 whyloom context "change refresh-token rotation"
 whyloom impact decisions/0007-token-storage.md
+whyloom path TokenService SessionStore
 whyloom reflect --task-summary "describe the durable project learning"
 whyloom validate
 whyloom doctor
@@ -132,6 +147,7 @@ whyloom doctor
 - `explain` answers what a path or symbol does and why it exists.
 - `context` builds a compact evidence bundle for a task.
 - `impact` shows the code and records affected by a change.
+- `path` traces the shortest relationship path between two entities, hop by hop, and can route through governing decisions and constraints — not just code.
 - `reflect` proposes new or updated records after work is completed.
 - `validate` detects broken links, stale records, and contradictory active constraints.
 - `doctor` verifies that configuration, records, index, and validation are ready.
@@ -173,7 +189,7 @@ Whyloom separates implementation truth from project intent:
 - tests are the source of truth for observed behavior;
 - accepted project records are the source of truth for intent and rationale;
 - the generated index is a cache, never an authority;
-- agent-generated knowledge enters as a proposal and requires normal Git review before becoming accepted truth.
+- agent-generated knowledge enters as a proposal and requires normal human review before becoming accepted truth.
 
 Whyloom stores concise rationale and evidence, not private model chain-of-thought.
 
@@ -187,13 +203,15 @@ The MVP includes:
 
 - Markdown records with YAML frontmatter;
 - nodes for files, symbols, decisions, and constraints;
-- project-wide Python calls, imports, inheritance, and references with provenance;
+- deterministic symbol extraction for Python, TypeScript, JavaScript, Go, Rust, Java, and C# (Python via the standard AST; the rest via optional tree-sitter grammars);
+- cross-file calls, imports, and inheritance with explicit `EXTRACTED`/`INFERRED` provenance;
 - JSON and YAML configuration-key extraction without storing configuration values;
 - stable structural communities and missing-rationale coverage;
 - typed links between records and implementation;
-- incremental local indexing;
+- incremental local indexing that works with or without Git;
 - full-text retrieval plus bounded graph traversal;
-- `onboard`, `init`, `index`, `explain`, `context`, `impact`, `reflect`, and `validate` commands;
+- shortest-path tracing between any two entities, routing through code *and* governing records;
+- `onboard`, `init`, `index`, `explain`, `context`, `impact`, `path`, `reflect`, and `validate` commands;
 - a portable Claude Code/Codex-style skill that invokes the CLI;
 - fixtures and an A/B evaluation against plain repository documentation.
 
@@ -207,11 +225,11 @@ The MVP does not include a hosted service, accounts, cross-repository knowledge,
 
 ## Status
 
-Beta CLI ready for real codebase pilots. The CLI initializes a repository, parses canonical records,
-indexes project-wide Python and structured configuration relationships into SQLite,
-groups implementation into deterministic structural communities, retrieves bounded task context,
-explains and traces impact, validates record drift, and creates human-governed
-reflection proposals. The included skill and evaluation fixture exercise the
+Beta CLI ready for real codebase pilots. The CLI initializes a project, parses canonical records,
+indexes seven-language symbol graphs with cross-file calls, imports, and inheritance plus structured
+configuration relationships into SQLite, groups implementation into deterministic structural communities,
+retrieves bounded task context, explains targets, traces impact and shortest paths, validates record drift,
+and creates human-governed reflection proposals. The included skill and evaluation fixture exercise the
 same public command contract.
 
 ## Development
