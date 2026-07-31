@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from . import __version__
 from .bootstrap import bootstrap_project, complete_onboarding, onboard_project, onboarding_status
 from .config import find_root, load_config
+from .hooks import azure_pipeline_snippet, install_hooks, uninstall_hooks
 from .indexer import index_project
 from .installer import AssistantPlatform, install_skills, uninstall_skills
 from .mapview import build_map_payload, render_map_html
@@ -202,6 +203,40 @@ def path_command(
     with open_existing_store(resolved, config, as_json) as store:
         payload = find_path(store, source, target, max_hops=max_hops)
     emit(payload, as_json)
+
+
+hook_app = typer.Typer(help="Manage the client-side Git hook that keeps the graph fresh.")
+app.add_typer(hook_app, name="hook")
+
+
+@hook_app.command("install")
+def hook_install_command(
+    root: Path | None = typer.Option(None, "--root"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    resolved, _ = project(root, as_json)
+    result = install_hooks(resolved)
+    if result.get("error"):
+        fail("HOOK001", result["error"], as_json)
+    emit(result, as_json)
+
+
+@hook_app.command("uninstall")
+def hook_uninstall_command(
+    root: Path | None = typer.Option(None, "--root"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    resolved, _ = project(root, as_json)
+    result = uninstall_hooks(resolved)
+    if result.get("error"):
+        fail("HOOK001", result["error"], as_json)
+    emit(result, as_json)
+
+
+@hook_app.command("azure")
+def hook_azure_command() -> None:
+    """Print an Azure Pipelines step for server-side graph refresh on push."""
+    typer.echo(azure_pipeline_snippet())
 
 
 @app.command("map")
