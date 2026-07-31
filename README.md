@@ -60,6 +60,23 @@ Local rationale graph
 Task-specific context for humans and agents
 ```
 
+## Quickstart
+
+The minimal setup to get Whyloom working in a project — run these in order:
+
+```bash
+uv tool install "whyloom[languages]"   # CLI + tree-sitter grammars (or plain `whyloom` for Python-only)
+cd /your/project
+whyloom install --project              # register the skill + add the agent-instruction pointer
+whyloom onboard --root .               # initialize records and build the first index
+whyloom hook install                   # keep the graph fresh on every commit
+whyloom doctor                         # confirm the setup is ready (integrity, index, freshness)
+```
+
+After this, your agent has the skill, an instruction-file pointer telling it to
+query before editing and capture after, and an index that stays current. Each
+step is explained below.
+
 ## Install
 
 Install the isolated CLI from PyPI:
