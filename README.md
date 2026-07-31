@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/whyloom-banner.svg" alt="Whyloom — weave code and its reasoning into one graph" width="100%">
+<img src="docs/assets/whyloom-banner.png" alt="Whyloom — weave code and its reasoning into one graph" width="100%">
 
 # Whyloom
 
