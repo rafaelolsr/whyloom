@@ -1,0 +1,22 @@
+{
+  "node_id": "NODE-016",
+  "items": [
+    {
+      "id": "EVD-001",
+      "kind": "command",
+      "summary": "Structured configuration fixture emits key nodes and CONFIGURES links without storing scalar values; ambiguous generic names do not explode inferred links.",
+      "satisfies": "JSON and YAML extraction tests pass",
+      "artifact": "artifacts/EVD-001-command.json",
+      "command": [
+        "/Users/rafael/Github/DataGeek/whyloom/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_structural_graph.py::test_project_resolution_configuration_and_communities",
+        "tests/test_structural_graph.py::test_config_reference_resolution_ignores_ambiguous_generic_keys"
+      ],
+      "exit_code": 0,
+      "created_at": "2026-07-17T18:59:34.404Z"
+    }
+  ]
+}

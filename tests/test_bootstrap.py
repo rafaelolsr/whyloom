@@ -62,15 +62,19 @@ def test_bootstrap_collects_bounded_evidence_without_changing_records(tmp_path):
     assert result["bootstrapped"]
     assert result["canonical_records_changed"] is False
     assert not (root / ".whyloom" / "overview.md").exists()
-    expected = {"documentation", "test", "configuration", "dependency", "git-history", "rationale-comment"}
+    expected = {"source", "documentation", "test", "configuration", "dependency", "git-history", "rationale-comment"}
     assert expected <= set(result["coverage"])
     manifest = json.loads((root / result["manifest"]).read_text(encoding="utf-8"))
     assert manifest["authoritative"] is False
+    structural = manifest["structural_coverage"]
+    assert structural["coverage"]["files_assigned"] == structural["coverage"]["files_total"]
+    assert structural["communities"]
     assert "do-not-copy" not in json.dumps(manifest)
     assert all(len(item["summary"]) <= 240 for item in manifest["evidence"])
     report = (root / result["report"]).read_text(encoding="utf-8")
     assert "not authoritative" in report
     assert "Require human review" in report
+    assert "Structural coverage" in report
 
 
 def test_bootstrap_is_deterministic_for_unchanged_repository(tmp_path):

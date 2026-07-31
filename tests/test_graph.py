@@ -31,8 +31,8 @@ def test_index_context_and_explain(tmp_path):
     with GraphStore(root / DEFAULT_CONFIG["database"]) as store:
         version = store.connection.execute("SELECT MAX(version) FROM migration_history").fetchone()[0]
         imports = store.connection.execute("SELECT target FROM edges WHERE type = 'IMPORTS'").fetchall()
-    assert version == 2
-    assert {row[0] for row in imports} == {"module:src/sample/auth.py:hashlib"}
+    assert version == 3
+    assert {row[0] for row in imports} == {"module-ref:src/sample/auth.py:hashlib"}
 
     compact = compact_context_packet(packet)
     assert compact["files"] == ["src/sample/auth.py"]

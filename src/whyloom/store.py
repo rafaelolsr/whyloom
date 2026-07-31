@@ -27,6 +27,12 @@ QUERY_STOPWORDS = {
 }
 
 
+def _query_terms(query: str) -> list[str]:
+    expanded = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", query).replace("_", "-")
+    terms = re.findall(r"[a-zA-Z0-9]+", expanded.casefold())
+    return list(dict.fromkeys(term for term in terms if len(term) > 1 and term not in QUERY_STOPWORDS))
+
+
 class GraphStore:
     def __init__(self, path: Path, *, create: bool = True):
         self.path = path
@@ -91,8 +97,18 @@ class GraphStore:
             )
         for edge in edges:
             self.connection.execute(
-                "INSERT OR REPLACE INTO edges(source,target,type,origin,evidence,confidence,source_path,source_hash) VALUES (?,?,?,?,?,?,?,?)",
-                (edge.source, edge.target, edge.type, edge.origin, edge.evidence, edge.confidence, edge.source_path, edge.source_hash),
+                "INSERT OR REPLACE INTO edges(source,target,type,origin,evidence,provenance,confidence,source_path,source_hash) VALUES (?,?,?,?,?,?,?,?,?)",
+                (
+                    edge.source,
+                    edge.target,
+                    edge.type,
+                    edge.origin,
+                    edge.evidence,
+                    edge.provenance,
+                    edge.confidence,
+                    edge.source_path,
+                    edge.source_hash,
+                ),
             )
         for document in documents:
             self.connection.execute("INSERT INTO documents(node_id,label,body,path) VALUES (?,?,?,?)", document)
@@ -119,8 +135,7 @@ class GraphStore:
         return self._node_dict(row) if row else None
 
     def search(self, query: str, limit: int = 20) -> list[dict]:
-        terms = re.findall(r"[a-zA-Z0-9_-]+", query.casefold())
-        terms = [term for term in terms if len(term) > 1 and term not in QUERY_STOPWORDS]
+        terms = _query_terms(query)
         if not terms:
             return []
         fts_query = " OR ".join(f'"{term}"' for term in terms)
@@ -146,7 +161,10 @@ class GraphStore:
         for row in rows:
             result.append(
                 {
-                    "edge": {key: row[key] for key in ("source", "target", "type", "origin", "evidence", "confidence")},
+                    "edge": {
+                        key: row[key]
+                        for key in ("source", "target", "type", "origin", "evidence", "provenance", "confidence")
+                    },
                     "node": {
                         "id": row["n_id"],
                         "type": row["n_type"],

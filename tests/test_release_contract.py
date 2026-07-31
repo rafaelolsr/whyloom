@@ -17,7 +17,7 @@ def test_release_workflow_uses_pypi_trusted_publishing():
 def test_package_metadata_points_to_public_repository():
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     assert project["name"] == "whyloom"
-    assert project["version"] == "0.5.1"
+    assert project["version"] == "0.6.0"
     assert project["urls"]["Repository"] == "https://github.com/rafaelolsr/whyloom.git"
 
 
@@ -31,3 +31,5 @@ def test_bundled_skills_complete_pending_onboarding_without_a_user_prompt():
     assert "whyloom onboard --status --root <root> --json" in bootstrap
     assert "whyloom onboard --complete" in bootstrap
     assert ".whyloom/cache/bootstrap/request.json" in bootstrap
+    assert ".whyloom/cache/coverage.json" in bootstrap
+    assert "relationship evidence and provenance" in ongoing

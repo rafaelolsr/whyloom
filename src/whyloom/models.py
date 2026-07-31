@@ -4,7 +4,7 @@ import re
 from datetime import date as Date
 from enum import StrEnum
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -121,6 +121,7 @@ class GraphEdge(BaseModel):
     type: str
     origin: str
     evidence: str
+    provenance: Literal["EXTRACTED", "INFERRED", "AMBIGUOUS"] = "EXTRACTED"
     confidence: float = 1.0
     source_path: str
     source_hash: str

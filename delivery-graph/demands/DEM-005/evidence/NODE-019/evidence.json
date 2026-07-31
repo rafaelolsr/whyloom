@@ -1,0 +1,14 @@
+{
+  "node_id": "NODE-019",
+  "items": [
+    {
+      "id": "EVD-001",
+      "kind": "report",
+      "summary": "Whyloom 0.6.0 passes 38 tests, Ruff, both skill validators, wheel build/contents, self-index, validation, doctor, evaluation suite, and StarBase dogfood. The acceptance graph reconstructs GetDefinition -> Fabric POST -> auth headers -> Fabric token -> OBO exchange with extracted line evidence and an explicit missing-rationale warning.",
+      "satisfies": "Full release gate and StarBase GetDefinition acceptance check pass",
+      "result": "pass",
+      "artifact": "artifacts/EVD-001-STRUCTURAL_GRAPH_V2_DOGFOOD.md",
+      "created_at": "2026-07-17T19:03:28.238Z"
+    }
+  ]
+}

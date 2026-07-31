@@ -1,0 +1,15 @@
+{
+  "kind": "command",
+  "command": [
+    "/Users/rafael/Github/DataGeek/whyloom/.venv/bin/python",
+    "-m",
+    "pytest",
+    "-q",
+    "tests/test_structural_graph.py::test_structural_communities_are_stable"
+  ],
+  "exit_code": 0,
+  "stdout": ".                                                                        [100%]\n1 passed in 2.35s\n",
+  "stderr": "",
+  "created_at": "2026-07-17T18:59:36.194Z",
+  "artifacts": []
+}

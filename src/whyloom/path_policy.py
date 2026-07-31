@@ -7,6 +7,7 @@ IGNORED_DIRECTORY_NAMES = frozenset(
         ".cache",
         ".direnv",
         ".git",
+        ".import_linter_cache",
         ".mypy_cache",
         ".nox",
         ".pytest_cache",

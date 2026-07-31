@@ -16,7 +16,7 @@ from .operations import GLOSSARY, OVERVIEW, init_project, validate_project
 from .path_policy import is_ignored_directory
 from .records import discover_records
 
-MANIFEST_VERSION = 1
+MANIFEST_VERSION = 2
 REQUEST_VERSION = 1
 REQUEST_RELATIVE_PATH = ".whyloom/cache/bootstrap/request.json"
 MAX_FILE_BYTES = 1_000_000
@@ -72,6 +72,8 @@ def _classify(path: Path, relative: str) -> set[str]:
     stem = path.stem.casefold()
     parts = {part.casefold() for part in path.parts}
     kinds: set[str] = set()
+    if path.suffix.casefold() in {".py", ".js", ".ts", ".go", ".rs", ".java"}:
+        kinds.add("source")
     if stem in DOC_NAMES or path.suffix.casefold() in {".md", ".rst"} or "docs" in parts:
         kinds.add("documentation")
     if "test" in parts or "tests" in parts or name.startswith("test_") or name.endswith("_test.py"):
@@ -98,11 +100,13 @@ def _file_summary(kind: str, path: Path, text: str | None) -> tuple[str, str]:
         return "file", "Dependency manifest; inspect declared libraries and runtime constraints."
     if kind == "configuration":
         return "file", "Configuration or automation evidence; inspect values before inferring policy."
+    if kind == "source":
+        return "file", "Source implementation evidence; use the structural graph to inspect symbols and relationships."
     return "file", f"Repository evidence in {path.name}."
 
 
 def _walk_evidence(root: Path, max_evidence: int) -> tuple[list[BootstrapEvidence], bool]:
-    evidence: list[BootstrapEvidence] = []
+    candidates: dict[str, list[tuple[str, str, str]]] = {}
     paths: list[Path] = []
     scan_truncated = False
     for current, directories, files in os.walk(root, followlinks=False):
@@ -115,35 +119,50 @@ def _walk_evidence(root: Path, max_evidence: int) -> tuple[list[BootstrapEvidenc
         if scan_truncated:
             break
     for path in paths:
-        if len(evidence) >= max_evidence:
-            break
         if not path.is_file():
             continue
         relative = path.relative_to(root).as_posix()
         kinds = _classify(path, relative)
         text = _safe_text(path) if kinds or path.suffix.casefold() in {".py", ".js", ".ts", ".go", ".rs", ".java"} else None
         for kind in sorted(kinds):
-            if len(evidence) >= max_evidence:
-                break
             locator, summary = _file_summary(kind, path, text)
-            evidence.append(BootstrapEvidence(f"EVD-{len(evidence) + 1:04d}", kind, relative, locator, summary))
-        if text and path.suffix.casefold() in {".py", ".js", ".ts", ".go", ".rs", ".java"} and len(evidence) < max_evidence:
+            candidates.setdefault(kind, []).append((relative, locator, summary))
+        if text and path.suffix.casefold() in {".py", ".js", ".ts", ".go", ".rs", ".java"}:
             for line_number, line in enumerate(text.splitlines(), start=1):
                 match = COMMENT_PATTERN.match(line)
                 if not match or not RATIONALE_PATTERN.search(match.group(1)):
                     continue
-                evidence.append(
-                    BootstrapEvidence(
-                        f"EVD-{len(evidence) + 1:04d}",
-                        "rationale-comment",
-                        relative,
-                        f"line:{line_number}",
-                        _one_line(match.group(1)),
-                    )
+                candidates.setdefault("rationale-comment", []).append(
+                    (relative, f"line:{line_number}", _one_line(match.group(1)))
                 )
-                if len(evidence) >= max_evidence:
-                    break
-    return evidence, scan_truncated
+    selected: list[tuple[str, str, str, str]] = []
+    non_empty = sorted(candidates)
+    quota = max(1, max_evidence // max(1, len(non_empty)))
+    offsets: dict[str, int] = {}
+    for kind in non_empty:
+        items = candidates[kind]
+        take = min(quota, len(items), max_evidence - len(selected))
+        selected.extend((kind, *item) for item in items[:take])
+        offsets[kind] = take
+    while len(selected) < max_evidence:
+        progressed = False
+        for kind in non_empty:
+            offset = offsets[kind]
+            if offset >= len(candidates[kind]):
+                continue
+            selected.append((kind, *candidates[kind][offset]))
+            offsets[kind] += 1
+            progressed = True
+            if len(selected) >= max_evidence:
+                break
+        if not progressed:
+            break
+    evidence = [
+        BootstrapEvidence(f"EVD-{index:04d}", kind, source, locator, summary)
+        for index, (kind, source, locator, summary) in enumerate(selected, start=1)
+    ]
+    total_candidates = sum(len(items) for items in candidates.values())
+    return evidence, scan_truncated or total_candidates > len(evidence)
 
 
 def _git_evidence(root: Path, history_limit: int, start: int, remaining: int) -> list[BootstrapEvidence]:
@@ -186,7 +205,7 @@ def _investigation_areas(counts: Counter[str]) -> list[str]:
     return areas
 
 
-def _render_report(evidence: list[BootstrapEvidence], truncated: bool) -> str:
+def _render_report(evidence: list[BootstrapEvidence], truncated: bool, structural: dict[str, Any] | None = None) -> str:
     counts = Counter(item.kind for item in evidence)
     lines = [
         "# Whyloom bootstrap report",
@@ -202,6 +221,20 @@ def _render_report(evidence: list[BootstrapEvidence], truncated: bool) -> str:
         lines.append("- No supported evidence discovered.")
     if truncated:
         lines.append("- Warning: evidence collection reached the configured limit.")
+    if structural:
+        structural_coverage = structural.get("coverage", {})
+        lines.extend(
+            [
+                "",
+                "## Structural coverage",
+                "",
+                f"- Indexed files assigned to communities: {structural_coverage.get('files_assigned', 0)}/{structural_coverage.get('files_total', 0)}",
+                f"- Communities: {structural_coverage.get('communities_total', 0)}",
+                f"- Communities with linked records: {structural_coverage.get('communities_with_records', 0)}",
+                f"- Communities missing rationale: {structural_coverage.get('communities_missing_rationale', 0)}",
+                f"- Cross-community relationships retained: {len(structural.get('cross_community_relationships', []))}",
+            ]
+        )
     lines.extend(["", "## Investigation areas", ""])
     lines.extend(f"- {area}" for area in _investigation_areas(counts))
     lines.extend(
@@ -284,7 +317,8 @@ def bootstrap_project(root: Path, config: dict[str, Any], history_limit: int = 5
     if not index_result["indexed"]:
         return {"bootstrapped": False, "index": index_result}
 
-    evidence, scan_truncated = _walk_evidence(root, max_evidence)
+    file_budget = max(1, max_evidence - min(history_limit, max_evidence // 4))
+    evidence, scan_truncated = _walk_evidence(root, file_budget)
     remaining = max_evidence - len(evidence)
     evidence.extend(_git_evidence(root, history_limit, len(evidence) + 1, remaining))
     truncated = len(evidence) >= max_evidence or scan_truncated
@@ -292,16 +326,19 @@ def bootstrap_project(root: Path, config: dict[str, Any], history_limit: int = 5
     generated_dir = resolve_repository_path(root, ".whyloom/cache/bootstrap")
     manifest_path = generated_dir / "evidence.json"
     report_path = generated_dir / "report.md"
+    coverage_path = root / index_result.get("coverage_manifest", "")
+    structural = json.loads(coverage_path.read_text(encoding="utf-8")) if coverage_path.is_file() else None
     payload = {
         "manifest_version": MANIFEST_VERSION,
         "authoritative": False,
         "evidence": [asdict(item) for item in evidence],
         "coverage": dict(sorted(counts.items())),
+        "structural_coverage": structural,
         "investigation_areas": _investigation_areas(counts),
         "truncated": truncated,
     }
     _atomic_write(manifest_path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
-    _atomic_write(report_path, _render_report(evidence, truncated))
+    _atomic_write(report_path, _render_report(evidence, truncated, structural))
     return {
         "bootstrapped": True,
         "index": index_result,
@@ -345,7 +382,8 @@ def onboard_project(
             "evidence_sha256": evidence_digest,
             "canonical_records_changed": False,
             "agent_actions": [
-                "Inspect the bounded evidence and relevant code graph.",
+                "Inspect every significant structural community and the bounded evidence.",
+                "Trace high-signal cross-community workflows and record uncovered areas.",
                 "Create only evidence-backed proposed Whyloom records.",
                 "Record confidence, citations, and open questions.",
                 "Run Whyloom validation and complete onboarding.",

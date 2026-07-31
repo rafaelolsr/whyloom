@@ -26,7 +26,8 @@ Long context windows and semantic search do not solve this reliably. They can re
 Whyloom maintains two connected forms of project knowledge:
 
 1. **Canonical project records in Git** — concise Markdown records for decisions, constraints, architecture, incidents, and terminology.
-2. **A generated local graph** — files, symbols, records, and typed relationships indexed for fast, bounded traversal.
+2. **A generated local graph** — files, symbols, configuration keys, structural
+   communities, records, and typed relationships indexed for fast, bounded traversal.
 
 The repository remains the source of truth. The graph is disposable and can always be rebuilt.
 
@@ -126,7 +127,8 @@ Run one command when a repository has code but little reliable project reasoning
 whyloom onboard --root . --json
 ```
 
-This initializes and indexes the repository, writes a bounded evidence manifest,
+This initializes and indexes the repository, writes a stratified evidence manifest
+and structural coverage ledger,
 and records a pending agent request under `.whyloom/cache/bootstrap/`. The
 installed Whyloom skills detect the request, inspect the evidence, and create
 proposed records with explicit confidence, citations, and open questions. They
@@ -134,6 +136,9 @@ then validate, re-index, and mark onboarding complete.
 
 Virtual environments and dependency caches—including named environments such as
 `.venv-deepeval-cli`—are pruned from both the graph and onboarding evidence.
+Structured configuration discovery is intentionally bounded to root files and
+common workflow, configuration, deployment, infrastructure, and template paths;
+projects can extend the `include` patterns in `whyloom.yaml` when needed.
 
 Check the lifecycle at any time:
 
@@ -165,6 +170,9 @@ The MVP includes:
 
 - Markdown records with YAML frontmatter;
 - nodes for files, symbols, decisions, and constraints;
+- project-wide Python calls, imports, inheritance, and references with provenance;
+- JSON and YAML configuration-key extraction without storing configuration values;
+- stable structural communities and missing-rationale coverage;
 - typed links between records and implementation;
 - incremental local indexing;
 - full-text retrieval plus bounded graph traversal;
@@ -183,7 +191,8 @@ The MVP does not include a hosted service, accounts, cross-repository knowledge,
 ## Status
 
 Beta CLI ready for real codebase pilots. The CLI initializes a repository, parses canonical records,
-incrementally indexes Python files into SQLite, retrieves bounded task context,
+indexes project-wide Python and structured configuration relationships into SQLite,
+groups implementation into deterministic structural communities, retrieves bounded task context,
 explains and traces impact, validates record drift, and creates human-governed
 reflection proposals. The included skill and evaluation fixture exercise the
 same public command contract.
@@ -199,8 +208,11 @@ uv run whyloom doctor --json
 uv run python evals/runner.py
 ```
 
-For agent calls, add `--compact` to `context` to return only governing record
-references, relevant files, warnings, and unresolved questions.
+For agent calls, add `--compact` to `context` to return governing records,
+relevant files and symbols, relationship provenance, communities, warnings, and unresolved questions.
 
 See [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md) for guarantees,
 release gates, and explicit beta limits.
+
+The [Structural Graph v2 dogfood report](docs/STRUCTURAL_GRAPH_V2_DOGFOOD.md)
+shows the evidence chain recovered from a large existing codebase.
