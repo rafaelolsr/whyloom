@@ -116,3 +116,37 @@ def test_doctor_reports_stale_freshness(tmp_path):
     result = doctor_project(root, DEFAULT_CONFIG)
     freshness = next(check for check in result["checks"] if check["name"] == "freshness")
     assert not freshness["ok"]
+
+
+def test_learnings_reports_uncovered_source(tmp_path):
+    from whyloom.operations import learnings_report
+
+    root = tmp_path / "repo"
+    (root / "src").mkdir(parents=True)
+    (root / "src" / "auth.py").write_text("def rotate():\n    return 1\n", encoding="utf-8")
+    init_project(root)
+    index_project(root, DEFAULT_CONFIG)
+    report = learnings_report(root, DEFAULT_CONFIG)
+    assert report["index_present"]
+    # A source file with no governing record is an uncovered rationale gap.
+    assert "src/auth.py" in report["uncovered"]
+
+
+def test_learnings_excludes_covered_files(tmp_path):
+    from whyloom.operations import learnings_report
+
+    root = tmp_path / "repo"
+    (root / "src").mkdir(parents=True)
+    (root / "src" / "auth.py").write_text("def rotate():\n    return 1\n", encoding="utf-8")
+    init_project(root)
+    (root / ".whyloom" / "decisions").mkdir(parents=True, exist_ok=True)
+    (root / ".whyloom" / "decisions" / "0001-auth.md").write_text(
+        "---\nid: DEC-0001\ntype: decision\ntitle: Auth approach\nstatus: accepted\n"
+        "date: 2026-07-31\ntargets:\n- src/auth.py\nconstraints: []\nsupersedes: []\n---\n\n"
+        "## Context\nx\n## Decision\nx\n## Rationale\nx\n## Alternatives\nx\n## Consequences\nx\n",
+        encoding="utf-8",
+    )
+    index_project(root, DEFAULT_CONFIG)
+    report = learnings_report(root, DEFAULT_CONFIG)
+    # The covered file must not appear as a gap.
+    assert "src/auth.py" not in report["uncovered"]

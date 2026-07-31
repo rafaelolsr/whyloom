@@ -15,7 +15,14 @@ from .hooks import azure_pipeline_snippet, install_hooks, uninstall_hooks
 from .indexer import index_project
 from .installer import AssistantPlatform, install_skills, uninstall_skills
 from .mapview import build_map_payload, render_map_html
-from .operations import doctor_project, init_project, reflect_project, stale_sources, validate_project
+from .operations import (
+    doctor_project,
+    init_project,
+    learnings_report,
+    reflect_project,
+    stale_sources,
+    validate_project,
+)
 from .retrieval import compact_context_packet, context_packet, explain_target, find_path, traverse
 from .store import CorruptIndexError, GraphStore
 
@@ -306,6 +313,17 @@ def impact_command(
         }
         payload = add_staleness_warning(payload, resolved, config, store)
     emit(payload, as_json)
+
+
+@app.command("learnings")
+def learnings_command(
+    changed_only: bool = typer.Option(False, "--changed", help="Limit gaps to files changed since the last index."),
+    root: Path | None = typer.Option(None, "--root"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Show pending proposals and rationale gaps so the capture loop stays reliable."""
+    resolved, config = project(root, as_json)
+    emit(learnings_report(resolved, config, changed_only=changed_only), as_json)
 
 
 @app.command("validate")

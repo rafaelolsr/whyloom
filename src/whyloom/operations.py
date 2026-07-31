@@ -20,6 +20,65 @@ from .store import CorruptIndexError, GraphStore
 _REFLECT_TARGET_NOISE = (".whyloom/templates/", ".whyloom/overview.md", ".whyloom/glossary.md", ".gitignore")
 
 
+def learnings_report(root: Path, config: dict, changed_only: bool = False) -> dict:
+    """Report the state of the retro-feed loop so capture is reliable, not
+    best-effort: pending proposals awaiting human review, and source files that
+    carry no governing record (rationale gaps an agent should consider filling).
+
+    With changed_only, gaps are limited to files changed since the last index
+    (Git if available, else filesystem hashes), which is what a post-work agent
+    should reflect on."""
+    root = root.resolve()
+    database = resolve_repository_path(root, config["database"])
+    proposals_dir = root / config["records_dir"] / "proposals"
+    proposals = sorted(p.relative_to(root).as_posix() for p in proposals_dir.glob("*.md")) if proposals_dir.is_dir() else []
+
+    if not database.is_file():
+        return {"proposals": proposals, "uncovered": [], "changed_only": changed_only, "index_present": False}
+
+    with GraphStore(database, create=False) as store:
+        # Files that have an incoming governing edge are "covered".
+        covered = {
+            row["target"].removeprefix("file:")
+            for row in store.connection.execute(
+                "SELECT DISTINCT target FROM edges WHERE type IN ('APPLIES_TO', 'IMPLEMENTS', 'CONSTRAINED_BY') AND target LIKE 'file:%'"
+            )
+        }
+        # Only language-source files carry logic worth explaining; configuration
+        # and generated files are not rationale gaps.
+        from .languages import default_registry
+
+        code_suffixes = default_registry().code_suffixes
+        source_files = {
+            row["path"]
+            for row in store.connection.execute(
+                "SELECT DISTINCT path FROM nodes WHERE type = 'File' AND path IS NOT NULL"
+            )
+            if any(row["path"].endswith(suffix) for suffix in code_suffixes)
+        }
+        if changed_only:
+            changed, _, warnings = _git_changed_paths(root)
+            if not changed:
+                changed, _ = _filesystem_changed_paths(root, config)
+            scope = set(changed)
+            source_files = {path for path in source_files if path in scope}
+
+    uncovered = sorted(path for path in source_files if path not in covered)
+    return {
+        "proposals": proposals,
+        "proposal_count": len(proposals),
+        "uncovered": uncovered,
+        "uncovered_count": len(uncovered),
+        "changed_only": changed_only,
+        "index_present": True,
+        "next_action": (
+            "Review pending proposals and run 'whyloom reflect' for significant uncovered changes."
+            if proposals or uncovered
+            else "Project memory is covered; no pending capture."
+        ),
+    }
+
+
 def stale_sources(root: Path, config: dict, store: GraphStore) -> list[str]:
     """Return indexed source paths whose on-disk content no longer matches the
     hash in the index, plus paths deleted since indexing. Used to warn callers

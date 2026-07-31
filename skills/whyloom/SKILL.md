@@ -47,7 +47,14 @@ treat missing knowledge as permission to invent a project decision.
 
 ## Capture learning after work
 
-Run:
+First check whether the work left uncovered rationale:
+
+```bash
+whyloom learnings --changed --json
+```
+
+If it reports uncovered source files that you changed, those are rationale gaps
+you should close before finishing. Then run:
 
 ```bash
 whyloom reflect --task-summary "<what changed and why>" --json

@@ -248,6 +248,10 @@ Installs or removes client-side Git hooks (`post-commit`, `post-merge`, `post-ch
 
 Uses an explicit task summary and Git diff to create proposal files. It never changes a record to accepted automatically.
 
+### `whyloom learnings`
+
+Reports the state of the retro-feed loop: pending proposals awaiting human review and uncovered source files (language-source files with no `APPLIES_TO`, `IMPLEMENTS`, or `CONSTRAINED_BY` edge). `--changed` limits gaps to files changed since the last index, which is what an agent should reflect on after completing work.
+
 ### `whyloom validate`
 
 Returns nonzero for invalid schemas or broken required references. Staleness, low-confidence links, and uncovered code are warnings unless configured otherwise.
