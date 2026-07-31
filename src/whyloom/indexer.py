@@ -11,6 +11,7 @@ from .communities import build_communities
 from .config import resolve_repository_path
 from .configgraph import extract_config, resolve_config_references
 from .languages import Extraction, default_registry
+from .locking import index_lock
 from .migrations import INDEX_FORMAT_VERSION
 from .models import Diagnostic, GraphEdge, GraphNode, ProjectRecord
 from .path_policy import has_ignored_directory
@@ -232,7 +233,8 @@ def index_project(root: Path, config: dict) -> dict:
     present = {*source_graphs, *record_graphs, PROJECT_RELATION_SOURCE, COMMUNITY_SOURCE}
     node_count = 0
     edge_count = 0
-    with GraphStore(db_path) as store, store.transaction():
+    lock_path = resolve_repository_path(root, ".whyloom/cache/index.lock")
+    with index_lock(lock_path), GraphStore(db_path) as store, store.transaction():
         for rel, (source_digest, kind, nodes, edges) in sorted(source_graphs.items()):
             if store.source_hash(rel) == source_digest and store.source_index_version(rel) == INDEX_FORMAT_VERSION:
                 unchanged.append(rel)

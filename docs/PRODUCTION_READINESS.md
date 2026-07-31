@@ -9,6 +9,14 @@ Whyloom `0.6.0` is intended for real codebase pilots as a local CLI.
 - Read commands never create a missing index and return stable JSON errors.
 - Indexing honors configured include and exclude patterns.
 - SQLite uses a busy timeout and WAL mode for normal concurrent readers.
+- Concurrent index writes are serialized by an advisory file lock that
+  self-heals a stale lock left by a crashed process, so a manual index and a
+  commit hook cannot corrupt the graph by racing.
+- A corrupt index is detected and surfaced as a clean `IDX003` error and a failed
+  `doctor` integrity check, never an uncaught exception.
+- `context`, `explain`, `impact`, and `path` warn when an indexed source no
+  longer matches the working tree, so an agent never silently acts on a stale
+  graph; `doctor` reports the same freshness state.
 - Schema and index-format versions migrate storage and force semantic reindexing after extractor changes.
 - Project-wide Python resolution records calls, inheritance, imports, and
   references with explicit provenance.
