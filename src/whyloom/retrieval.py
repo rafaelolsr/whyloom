@@ -17,6 +17,9 @@ EDGE_WEIGHTS = {
     "REFERENCES": 0.65,
     "CONFIGURES": 0.7,
     "MEMBER_OF": 0.55,
+    # Rationale comments are advisory evidence: reachable, but weighted below
+    # structural edges so they never outrank governed records or code links.
+    "ANNOTATES": 0.5,
 }
 
 SEED_PRIORITY = {
@@ -28,6 +31,8 @@ SEED_PRIORITY = {
     "Symbol": 3,
     "ConfigKey": 3,
     "Community": 4,
+    # Below code and records: advisory, never authoritative.
+    "Rationale": 5,
 }
 
 

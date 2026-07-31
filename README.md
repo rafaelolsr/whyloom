@@ -205,6 +205,7 @@ The MVP includes:
 - nodes for files, symbols, decisions, and constraints;
 - deterministic symbol extraction for Python, TypeScript, JavaScript, Go, Rust, Java, and C# (Python via the standard AST; the rest via optional tree-sitter grammars);
 - cross-file calls, imports, and inheritance with explicit `EXTRACTED`/`INFERRED` provenance;
+- tagged in-code comments (`WHY`, `HACK`, `TODO`, ...) captured as queryable rationale nodes, ranked as advisory evidence beneath governed records;
 - JSON and YAML configuration-key extraction without storing configuration values;
 - stable structural communities and missing-rationale coverage;
 - typed links between records and implementation;

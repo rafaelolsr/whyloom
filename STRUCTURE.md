@@ -84,6 +84,7 @@ validate the resulting project memory, and close it with `whyloom onboard
 - `Community`
 - `Decision`
 - `Constraint`
+- `Rationale` — a tagged in-code comment (`WHY`, `HACK`, `NOTE`, `TODO`, `FIXME`, ...). Advisory evidence, never authoritative; ranked below governed records.
 
 Architecture and incident records can initially be represented as typed records, then promoted to first-class nodes after the core retrieval loop is validated.
 
@@ -100,6 +101,7 @@ Architecture and incident records can initially be represented as typed records,
 - `IMPLEMENTS`: code implements an accepted decision.
 - `CONSTRAINED_BY`: a decision, file, or symbol is governed by a constraint.
 - `SUPERSEDES`: a record replaces an earlier record.
+- `ANNOTATES`: a rationale comment annotates its enclosing symbol or file.
 
 Every edge stores origin, evidence, `EXTRACTED`, `INFERRED`, or `AMBIGUOUS`
 provenance, confidence, and last-indexed hash. Explicit record links outrank inferred code relationships.

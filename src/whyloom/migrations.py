@@ -3,7 +3,9 @@ from __future__ import annotations
 import sqlite3
 
 SCHEMA_VERSION = 3
-INDEX_FORMAT_VERSION = 3
+# Bumped to 4: extraction now emits Rationale nodes and ANNOTATES edges, so
+# existing per-source indexes are stale and must be rebuilt to include them.
+INDEX_FORMAT_VERSION = 4
 
 MIGRATIONS = {
     1: """
