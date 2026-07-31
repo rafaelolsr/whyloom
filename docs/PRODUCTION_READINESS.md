@@ -12,6 +12,10 @@ Whyloom `0.6.0` is intended for real codebase pilots as a local CLI.
 - Schema and index-format versions migrate storage and force semantic reindexing after extractor changes.
 - Project-wide Python resolution records calls, inheritance, imports, and
   references with explicit provenance.
+- Additional languages (TypeScript, JavaScript, Go, Rust, Java, C#) extract
+  symbols through optional tree-sitter grammars and resolve cross-file calls and
+  inheritance by symbol name as INFERRED edges; missing grammars degrade to a
+  File node plus a LANG002 warning rather than failing the index.
 - JSON and YAML adapters record key structure but never configuration values.
 - Every indexed implementation file is assigned to a deterministic structural community.
 - Reflection includes tracked and untracked changed files and always proposes.
@@ -36,7 +40,12 @@ Whyloom `0.6.0` is intended for real codebase pilots as a local CLI.
 
 ## Explicit limits
 
-- Python is the only programming-language extractor; JSON and YAML are indexed as configuration structure.
+- Python has the most complete extractor (import-alias-aware call, inheritance,
+  and reference resolution). TypeScript, JavaScript, Go, Rust, Java, and C# are
+  supported through optional tree-sitter grammars with name-based cross-file
+  resolution only; import aliases are not yet tracked, so their CALLS/INHERITS
+  edges are INFERRED and lose confidence when a name is ambiguous. Cross-language
+  edges are out of scope. JSON and YAML are indexed as configuration structure.
 - Bootstrap discovers documentation, tests, configuration, dependencies,
   rationale comments, and Git subjects across common repository layouts, but
   semantic inference is performed by the portable skill rather than the CLI.
