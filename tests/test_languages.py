@@ -90,6 +90,74 @@ def test_go_cross_file_calls(tmp_path):
     assert ("symbol:main.go:Rotate", "symbol:helpers.go:IssueToken") in calls
 
 
+def test_rationale_comments_become_nodes(tmp_path):
+    from whyloom.store import GraphStore
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "auth.py").write_text(
+        "# TODO: schedule rotation\n"
+        "def rotate(user):\n"
+        "    # WHY: rotate every use to shrink the replay window\n"
+        "    return user\n",
+        encoding="utf-8",
+    )
+    index_project(tmp_path, DEFAULT_CONFIG)
+    with GraphStore(tmp_path / ".whyloom" / "cache" / "graph.sqlite", create=False) as store:
+        rationale = {
+            row["id"]: row["label"]
+            for row in store.connection.execute("SELECT id, label FROM nodes WHERE type = 'Rationale'").fetchall()
+        }
+        annotates = {
+            (row["source"], row["target"])
+            for row in store.connection.execute("SELECT source, target FROM edges WHERE type = 'ANNOTATES'").fetchall()
+        }
+    assert any(label.startswith("WHY:") for label in rationale.values())
+    assert any(label.startswith("TODO:") for label in rationale.values())
+    # WHY attaches to the enclosing function; module-level TODO attaches to the file.
+    assert ("rationale:src/auth.py:3", "symbol:src/auth.py:rotate") in annotates
+    assert ("rationale:src/auth.py:1", "file:src/auth.py") in annotates
+
+
+def test_rationale_ignores_comment_markers_inside_strings():
+    from whyloom.languages import extract_rationale
+
+    text = (
+        '# WHY: a genuine comment\n'
+        'pattern = "# TODO: this is string data, not a comment"\n'
+        "def f():\n"
+        "    # HACK: real hack\n"
+        "    pass\n"
+    )
+    nodes, _ = extract_rationale(text, "x.py", "hash", [(3, 5, "symbol:x.py:f")])
+    labels = [n.label for n in nodes]
+    assert any(label.startswith("WHY:") for label in labels)
+    assert any(label.startswith("HACK:") for label in labels)
+    # The tag inside the string literal must not become a node.
+    assert not any("string data" in label for label in labels)
+
+
+def test_rationale_never_outranks_accepted_records(tmp_path):
+    import shutil
+
+    from whyloom.retrieval import context_packet
+    from whyloom.store import GraphStore
+
+    fixture = Path(__file__).parent / "fixtures" / "sample_repo"
+    root = tmp_path / "repo"
+    shutil.copytree(fixture, root)
+    auth = root / "src" / "sample" / "auth.py"
+    auth.write_text("# WHY: tokens stay server-side\n" + auth.read_text(encoding="utf-8"), encoding="utf-8")
+    index_project(root, DEFAULT_CONFIG)
+    with GraphStore(root / DEFAULT_CONFIG["database"]) as store:
+        packet = context_packet(store, "token storage decision")
+    top = packet["evidence"][0]
+    assert top["type"] in {"Decision", "Constraint"}
+    record_score = top["score"]
+    for item in packet["evidence"]:
+        if item["type"] == "Rationale":
+            assert item["score"] < record_score
+
+
 def test_all_registered_suffixes_have_globs():
     from whyloom.config import DEFAULT_INCLUDE_PATTERNS
 

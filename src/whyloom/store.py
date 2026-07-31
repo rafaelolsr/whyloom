@@ -178,6 +178,16 @@ class GraphStore:
             )
         return result
 
+    def all_nodes(self) -> list[dict]:
+        rows = self.connection.execute("SELECT * FROM nodes").fetchall()
+        return [self._node_dict(row) for row in rows]
+
+    def all_edges(self) -> list[dict]:
+        rows = self.connection.execute(
+            "SELECT source, target, type, origin, evidence, provenance, confidence FROM edges"
+        ).fetchall()
+        return [dict(row) for row in rows]
+
     @staticmethod
     def _node_dict(row: sqlite3.Row) -> dict:
         return {

@@ -14,12 +14,95 @@ node rather than failing the index, keeping the base install small and offline.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
 from .codegraph import PythonExtraction, extract_python, resolve_python_project, source_hash
 from .models import Diagnostic, GraphEdge, GraphNode
+
+# Tagged rationale comments become first-class, queryable Rationale nodes.
+# The comment is EXTRACTED (it literally exists) but its content is advisory:
+# it never outranks an accepted Decision or Constraint record.
+RATIONALE_TAGS = ("WHY", "HACK", "NOTE", "TODO", "FIXME", "XXX", "BUG", "WARNING", "OPTIMIZE")
+_TAG_BODY = re.compile(
+    r"(?:#|//|/\*|\*|<!--|--)\s*(" + "|".join(RATIONALE_TAGS) + r")\b[:\-\s]*(.+?)\s*(?:\*/|-->)?\s*$",
+    re.IGNORECASE,
+)
+# A line-comment must start at line beginning or after code, and crucially the
+# marker must not sit inside a string literal. We approximate that cheaply by
+# rejecting lines where an odd number of quotes precede the marker.
+_LINE_COMMENT = re.compile(r"^(?P<pre>[^\n]*?)(?P<marker>#|//|/\*|<!--|--)\s*(?P<rest>.*)$")
+
+
+def _looks_like_string_context(prefix: str) -> bool:
+    """True when the comment marker is likely inside a string literal, judged by
+    an unbalanced count of unescaped quotes before it."""
+    return (prefix.count('"') - prefix.count('\\"')) % 2 == 1 or (prefix.count("'") - prefix.count("\\'")) % 2 == 1
+
+
+def extract_rationale(
+    text: str,
+    rel: str,
+    digest: str,
+    symbol_ranges: list[tuple[int, int, str]],
+) -> tuple[list[GraphNode], list[GraphEdge]]:
+    """Turn tagged comments (WHY/HACK/NOTE/TODO/...) into Rationale nodes linked
+    to the enclosing symbol, or the file when no symbol contains the line.
+
+    ``symbol_ranges`` is (start_line, end_line, symbol_id); the innermost range
+    containing a comment line wins so rationale attaches to the tightest scope."""
+    file_id = f"file:{rel}"
+    nodes: list[GraphNode] = []
+    edges: list[GraphEdge] = []
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        comment = _LINE_COMMENT.match(line)
+        # Reject markers that sit inside a string literal (test data, examples).
+        if not comment or _looks_like_string_context(comment.group("pre")):
+            continue
+        match = _TAG_BODY.search(comment.group("marker") + " " + comment.group("rest"))
+        if not match:
+            continue
+        tag = match.group(1).upper()
+        note = match.group(2).strip()
+        if not note:
+            continue
+        rationale_id = f"rationale:{rel}:{line_number}"
+        # Tightest enclosing symbol: smallest span covering this line.
+        target = file_id
+        best_span = None
+        for start, end, symbol_id in symbol_ranges:
+            if start <= line_number <= end:
+                span = end - start
+                if best_span is None or span < best_span:
+                    best_span = span
+                    target = symbol_id
+        nodes.append(
+            GraphNode(
+                id=rationale_id,
+                type="Rationale",
+                label=f"{tag}: {note[:80]}",
+                path=rel,
+                source_path=rel,
+                source_hash=digest,
+                data={"tag": tag, "note": note, "line": line_number},
+            )
+        )
+        edges.append(
+            GraphEdge(
+                source=rationale_id,
+                target=target,
+                type="ANNOTATES",
+                origin="rationale-comment",
+                provenance="EXTRACTED",
+                evidence=f"{rel}:{line_number}",
+                confidence=1.0,
+                source_path=rel,
+                source_hash=digest,
+            )
+        )
+    return nodes, edges
 
 
 @dataclass(frozen=True)
@@ -52,12 +135,26 @@ class PythonAdapter:
 
     def extract(self, path: Path, root: Path) -> Extraction:
         result: PythonExtraction = extract_python(path, root)
+        nodes = list(result.nodes)
+        edges = list(result.edges)
+        symbol_ranges = [
+            (node.data["line"], node.data.get("end_line") or node.data["line"], node.id)
+            for node in result.nodes
+            if node.type == "Symbol" and node.data.get("line")
+        ]
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            text = ""
+        rationale_nodes, rationale_edges = extract_rationale(text, result.path, result.digest, symbol_ranges)
+        nodes.extend(rationale_nodes)
+        edges.extend(rationale_edges)
         return Extraction(
             path=result.path,
             digest=result.digest,
             language="python",
-            nodes=result.nodes,
-            edges=result.edges,
+            nodes=nodes,
+            edges=edges,
             diagnostics=result.diagnostics,
             payload=result,
         )
@@ -268,6 +365,17 @@ class TreeSitterAdapter:
         node_by_id: dict[str, GraphNode] = {file_id: nodes[0]}
         self._walk(tree.root_node, source, grammar, rel, digest, file_id, nodes, edges, imports, node_by_id)
         nodes[0].data["imports"] = imports
+
+        symbol_ranges = [
+            (node.data["line"], node.data.get("end_line", node.data["line"]), node.id)
+            for node in nodes
+            if node.type == "Symbol"
+        ]
+        rationale_nodes, rationale_edges = extract_rationale(
+            source.decode("utf-8", "replace"), rel, digest, symbol_ranges
+        )
+        nodes.extend(rationale_nodes)
+        edges.extend(rationale_edges)
         return Extraction(rel, digest, grammar.language, nodes, edges, diagnostics)
 
     def _walk(self, node, source, grammar, rel, digest, file_id, nodes, edges, imports, node_by_id, parent_id=None):

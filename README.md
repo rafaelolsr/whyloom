@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/whyloom-banner.svg" alt="Whyloom — weave code and its reasoning into one graph" width="100%">
+<img src="docs/assets/whyloom-banner.png" alt="Whyloom — weave code and its reasoning into one graph" width="100%">
 
 # Whyloom
 
@@ -136,6 +136,7 @@ whyloom explain src/auth/token_service.py
 whyloom context "change refresh-token rotation"
 whyloom impact decisions/0007-token-storage.md
 whyloom path TokenService SessionStore
+whyloom map --output graph.html
 whyloom reflect --task-summary "describe the durable project learning"
 whyloom validate
 whyloom doctor
@@ -148,6 +149,8 @@ whyloom doctor
 - `context` builds a compact evidence bundle for a task.
 - `impact` shows the code and records affected by a change.
 - `path` traces the shortest relationship path between two entities, hop by hop, and can route through governing decisions and constraints — not just code.
+- `map` renders the current graph as a self-contained, offline HTML view you can open in any browser — governed records highlighted, inferred edges distinguished.
+- `hook install` adds a local Git post-commit hook so the graph stays fresh automatically; it works with any remote, including GitHub, GitLab, and Azure DevOps. Use `hook azure` for a server-side Azure Pipelines snippet.
 - `reflect` proposes new or updated records after work is completed.
 - `validate` detects broken links, stale records, and contradictory active constraints.
 - `doctor` verifies that configuration, records, index, and validation are ready.
@@ -205,6 +208,7 @@ The MVP includes:
 - nodes for files, symbols, decisions, and constraints;
 - deterministic symbol extraction for Python, TypeScript, JavaScript, Go, Rust, Java, and C# (Python via the standard AST; the rest via optional tree-sitter grammars);
 - cross-file calls, imports, and inheritance with explicit `EXTRACTED`/`INFERRED` provenance;
+- tagged in-code comments (`WHY`, `HACK`, `TODO`, ...) captured as queryable rationale nodes, ranked as advisory evidence beneath governed records;
 - JSON and YAML configuration-key extraction without storing configuration values;
 - stable structural communities and missing-rationale coverage;
 - typed links between records and implementation;

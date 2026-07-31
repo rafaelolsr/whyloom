@@ -11,8 +11,10 @@ from pydantic import ValidationError
 from . import __version__
 from .bootstrap import bootstrap_project, complete_onboarding, onboard_project, onboarding_status
 from .config import find_root, load_config
+from .hooks import azure_pipeline_snippet, install_hooks, uninstall_hooks
 from .indexer import index_project
 from .installer import AssistantPlatform, install_skills, uninstall_skills
+from .mapview import build_map_payload, render_map_html
 from .operations import doctor_project, init_project, reflect_project, validate_project
 from .retrieval import compact_context_packet, context_packet, explain_target, find_path, traverse
 from .store import GraphStore
@@ -201,6 +203,63 @@ def path_command(
     with open_existing_store(resolved, config, as_json) as store:
         payload = find_path(store, source, target, max_hops=max_hops)
     emit(payload, as_json)
+
+
+hook_app = typer.Typer(help="Manage the client-side Git hook that keeps the graph fresh.")
+app.add_typer(hook_app, name="hook")
+
+
+@hook_app.command("install")
+def hook_install_command(
+    root: Path | None = typer.Option(None, "--root"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    resolved, _ = project(root, as_json)
+    result = install_hooks(resolved)
+    if result.get("error"):
+        fail("HOOK001", result["error"], as_json)
+    emit(result, as_json)
+
+
+@hook_app.command("uninstall")
+def hook_uninstall_command(
+    root: Path | None = typer.Option(None, "--root"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    resolved, _ = project(root, as_json)
+    result = uninstall_hooks(resolved)
+    if result.get("error"):
+        fail("HOOK001", result["error"], as_json)
+    emit(result, as_json)
+
+
+@hook_app.command("azure")
+def hook_azure_command() -> None:
+    """Print an Azure Pipelines step for server-side graph refresh on push."""
+    typer.echo(azure_pipeline_snippet())
+
+
+@app.command("map")
+def map_command(
+    output: Path = typer.Option(Path(".whyloom/cache/map.html"), "--output", "-o", help="Where to write the HTML map."),
+    max_nodes: int = typer.Option(600, "--max-nodes", help="Maximum nodes to draw for readability."),
+    root: Path | None = typer.Option(None, "--root"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    resolved, config = project(root, as_json)
+    with open_existing_store(resolved, config, as_json) as store:
+        payload = build_map_payload(store, max_nodes=max_nodes)
+    document = render_map_html(payload)
+    out_path = output if output.is_absolute() else resolved / output
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(document, encoding="utf-8")
+    emit(
+        {
+            "map": out_path.relative_to(resolved).as_posix() if out_path.is_relative_to(resolved) else str(out_path),
+            "summary": payload["summary"],
+        },
+        as_json,
+    )
 
 
 @app.command("impact")

@@ -84,6 +84,7 @@ validate the resulting project memory, and close it with `whyloom onboard
 - `Community`
 - `Decision`
 - `Constraint`
+- `Rationale` — a tagged in-code comment (`WHY`, `HACK`, `NOTE`, `TODO`, `FIXME`, ...). Advisory evidence, never authoritative; ranked below governed records.
 
 Architecture and incident records can initially be represented as typed records, then promoted to first-class nodes after the core retrieval loop is validated.
 
@@ -100,6 +101,7 @@ Architecture and incident records can initially be represented as typed records,
 - `IMPLEMENTS`: code implements an accepted decision.
 - `CONSTRAINED_BY`: a decision, file, or symbol is governed by a constraint.
 - `SUPERSEDES`: a record replaces an earlier record.
+- `ANNOTATES`: a rationale comment annotates its enclosing symbol or file.
 
 Every edge stores origin, evidence, `EXTRACTED`, `INFERRED`, or `AMBIGUOUS`
 provenance, confidence, and last-indexed hash. Explicit record links outrank inferred code relationships.
@@ -233,6 +235,14 @@ Traverses outward from a file, symbol, decision, or constraint and groups likely
 ### `whyloom path <source> <target>`
 
 Runs a breadth-first shortest-path search between two resolved entities and returns the minimal hop sequence. Each hop names the edge type and its provenance and confidence, and the path may route through governing decisions and constraints, so the connection is auditable rather than opaque.
+
+### `whyloom map`
+
+Renders the indexed graph as a single self-contained HTML file with an inline, dependency-free force layout. The map is a view over the cache, never a source of truth: governed records carry a gold ring, inferred edges are dashed, and truncation is reported when the graph exceeds the drawing limit.
+
+### `whyloom hook install` / `uninstall` / `azure`
+
+Installs or removes client-side Git hooks (`post-commit`, `post-merge`, `post-checkout`) that run `whyloom index` so the graph tracks the working tree. Hooks are local and host-agnostic, so they work against any remote including Azure DevOps; a pre-existing non-Whyloom hook is never overwritten, and uninstall removes only Whyloom-owned hooks. `hook azure` prints an Azure Pipelines step for server-side refresh on push.
 
 ### `whyloom reflect`
 

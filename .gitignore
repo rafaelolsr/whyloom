@@ -6,3 +6,6 @@ dist/
 build/
 *.egg-info/
 .whyloom/cache/
+
+# macOS
+.DS_Store
