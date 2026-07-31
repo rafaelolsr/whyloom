@@ -13,6 +13,7 @@ from .bootstrap import bootstrap_project, complete_onboarding, onboard_project, 
 from .config import find_root, load_config
 from .indexer import index_project
 from .installer import AssistantPlatform, install_skills, uninstall_skills
+from .mapview import build_map_payload, render_map_html
 from .operations import doctor_project, init_project, reflect_project, validate_project
 from .retrieval import compact_context_packet, context_packet, explain_target, find_path, traverse
 from .store import GraphStore
@@ -201,6 +202,29 @@ def path_command(
     with open_existing_store(resolved, config, as_json) as store:
         payload = find_path(store, source, target, max_hops=max_hops)
     emit(payload, as_json)
+
+
+@app.command("map")
+def map_command(
+    output: Path = typer.Option(Path(".whyloom/cache/map.html"), "--output", "-o", help="Where to write the HTML map."),
+    max_nodes: int = typer.Option(600, "--max-nodes", help="Maximum nodes to draw for readability."),
+    root: Path | None = typer.Option(None, "--root"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    resolved, config = project(root, as_json)
+    with open_existing_store(resolved, config, as_json) as store:
+        payload = build_map_payload(store, max_nodes=max_nodes)
+    document = render_map_html(payload)
+    out_path = output if output.is_absolute() else resolved / output
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(document, encoding="utf-8")
+    emit(
+        {
+            "map": out_path.relative_to(resolved).as_posix() if out_path.is_relative_to(resolved) else str(out_path),
+            "summary": payload["summary"],
+        },
+        as_json,
+    )
 
 
 @app.command("impact")

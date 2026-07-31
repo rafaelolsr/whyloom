@@ -236,6 +236,10 @@ Traverses outward from a file, symbol, decision, or constraint and groups likely
 
 Runs a breadth-first shortest-path search between two resolved entities and returns the minimal hop sequence. Each hop names the edge type and its provenance and confidence, and the path may route through governing decisions and constraints, so the connection is auditable rather than opaque.
 
+### `whyloom map`
+
+Renders the indexed graph as a single self-contained HTML file with an inline, dependency-free force layout. The map is a view over the cache, never a source of truth: governed records carry a gold ring, inferred edges are dashed, and truncation is reported when the graph exceeds the drawing limit.
+
 ### `whyloom reflect`
 
 Uses an explicit task summary and Git diff to create proposal files. It never changes a record to accepted automatically.
