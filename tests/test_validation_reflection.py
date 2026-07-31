@@ -47,6 +47,42 @@ def test_validation_detects_supersession_cycle(tmp_path):
     assert any(item["code"] == "LIFE002" for item in result["errors"])
 
 
+def test_reflection_without_git_uses_filesystem_baseline(tmp_path):
+    from whyloom.indexer import index_project
+    from whyloom.operations import init_project
+
+    root = tmp_path / "repo"
+    (root / "src").mkdir(parents=True)
+    (root / "src" / "auth.py").write_text("def rotate():\n    return 1\n", encoding="utf-8")
+    init_project(root)
+    index_project(root, DEFAULT_CONFIG)
+    # Change the file after indexing so filesystem detection has a delta.
+    (root / "src" / "auth.py").write_text("def rotate():\n    return 1\n\ndef revoke():\n    return 2\n", encoding="utf-8")
+
+    result = reflect_project(root, "Add session revocation", config=DEFAULT_CONFIG)
+    assert result["baseline"] == "filesystem"
+    assert result["changed_paths"] == ["src/auth.py"]
+    # The brief reports symbols from the last index, giving the agent structural
+    # context for the file that changed (re-index to reflect post-edit symbols).
+    assert result["agent_brief"]["changed_symbols"]["src/auth.py"] == ["rotate"]
+    assert not any(".whyloom/templates" in p for p in result["changed_paths"])
+
+
+def test_reflection_proposal_has_agent_sections(tmp_path):
+    root = tmp_path / "repo"
+    shutil.copytree(FIXTURE, root)
+    proposal = reflect_project(
+        root,
+        "Keep token fingerprints server-side",
+        "diff --git a/src/sample/auth.py b/src/sample/auth.py\n+++ b/src/sample/auth.py\n",
+    )
+    body = (root / proposal["proposal"]).read_text(encoding="utf-8")
+    for section in ("## Decision", "## Rationale", "## Alternatives", "## Consequences", "## Open questions"):
+        assert section in body
+    assert "<!-- agent:" in body
+    assert proposal["agent_brief"]["sections_to_complete"]
+
+
 def test_reflection_includes_untracked_files(tmp_path):
     root = tmp_path / "repo"
     root.mkdir()

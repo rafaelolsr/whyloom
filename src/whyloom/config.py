@@ -6,6 +6,44 @@ from typing import Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+DEFAULT_INCLUDE_PATTERNS = [
+    "**/*.py",
+    "**/*.ts",
+    "**/*.tsx",
+    "**/*.js",
+    "**/*.jsx",
+    "**/*.go",
+    "**/*.rs",
+    "**/*.java",
+    "**/*.cs",
+    "*.json",
+    "*.yaml",
+    "*.yml",
+    ".github/workflows/*.yaml",
+    ".github/workflows/*.yml",
+    "config/**/*.json",
+    "config/**/*.yaml",
+    "config/**/*.yml",
+    "configs/**/*.json",
+    "configs/**/*.yaml",
+    "configs/**/*.yml",
+    "deploy/**/*.json",
+    "deploy/**/*.yaml",
+    "deploy/**/*.yml",
+    "deployment/**/*.json",
+    "deployment/**/*.yaml",
+    "deployment/**/*.yml",
+    "infra/**/*.json",
+    "infra/**/*.yaml",
+    "infra/**/*.yml",
+    "infrastructure/**/*.json",
+    "infrastructure/**/*.yaml",
+    "infrastructure/**/*.yml",
+    "templates/**/*.json",
+    "templates/**/*.yaml",
+    "templates/**/*.yml",
+]
+
 
 class WhyloomConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -13,7 +51,7 @@ class WhyloomConfig(BaseModel):
     version: Literal[1] = 1
     records_dir: str = ".whyloom"
     database: str = ".whyloom/cache/graph.sqlite"
-    include: list[str] = Field(default_factory=lambda: ["**/*.py"])
+    include: list[str] = Field(default_factory=lambda: list(DEFAULT_INCLUDE_PATTERNS))
     exclude: list[str] = Field(
         default_factory=lambda: [
             ".git/**",
@@ -23,6 +61,11 @@ class WhyloomConfig(BaseModel):
             "venv-*/**",
             ".tox/**",
             ".nox/**",
+            ".mypy_cache/**",
+            ".pytest_cache/**",
+            ".ruff_cache/**",
+            ".cache/**",
+            ".import_linter_cache/**",
             "__pypackages__/**",
             "**/site-packages/**",
             "**/node_modules/**",

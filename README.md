@@ -1,8 +1,25 @@
+<div align="center">
+
+<img src="docs/assets/whyloom-banner.svg" alt="Whyloom — weave code and its reasoning into one graph" width="100%">
+
 # Whyloom
 
-![Whyloom weaves code, decisions, constraints, and history into a living project-memory graph](docs/assets/whyloom-hero.png)
+**Your codebase remembers why.** *A Git-native, graph-backed project memory that links code to the decisions, constraints, and rejected alternatives that explain it — then hands agents fast, task-specific context.*
 
-> Your codebase remembers why.
+[![CI](https://github.com/rafaelolsr/whyloom/actions/workflows/ci.yml/badge.svg)](https://github.com/rafaelolsr/whyloom/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/whyloom.svg)](https://pypi.org/project/whyloom/)
+[![Python](https://img.shields.io/pypi/pyversions/whyloom.svg)](https://pypi.org/project/whyloom/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+Works with **Claude Code · Codex · GitHub Copilot · Agent Skills** — one deterministic CLI, portable skills, a tiny dependency surface, and nothing that leaves your machine.
+
+[Install](#install) · [Core workflow](#core-workflow) · [Onboard a codebase](#onboard-an-existing-codebase) · [Trust model](#trust-model) · [How it works](STRUCTURE.md) · [Docs](#repository-documents)
+
+</div>
+
+---
+
+## What is Whyloom?
 
 Whyloom is a Git-native, graph-backed project memory for a single codebase. It connects implementation facts to the decisions, constraints, rejected alternatives, and operational lessons that explain them, then gives humans and coding agents fast, task-specific context.
 
