@@ -107,11 +107,14 @@ def install_command(
     platform: AssistantPlatform = typer.Option(AssistantPlatform.AUTO, "--platform", case_sensitive=False),
     project_scope: bool = typer.Option(False, "--project", help="Install into the current project."),
     root: Path = typer.Option(Path("."), "--root", help="Project root used by --project."),
+    guidance: bool = typer.Option(
+        True, "--guidance/--no-guidance", help="Also add a Whyloom pointer to the project's agent-instruction file."
+    ),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Register bundled Whyloom skills with supported AI assistants."""
     try:
-        emit(install_skills(platform, project=project_scope, root=root), as_json)
+        emit(install_skills(platform, project=project_scope, root=root, guidance=guidance), as_json)
     except (OSError, ValueError) as exc:
         fail("INSTALL001", str(exc), as_json)
 

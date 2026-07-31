@@ -84,6 +84,20 @@ whyloom install --platform agents
 whyloom install --platform copilot --project --root .
 ```
 
+When you install into a project, Whyloom also adds a short pointer to your
+assistant's instruction file so the agent reliably runs the query/capture loop —
+skill auto-matching alone is probabilistic. The file is chosen per platform:
+
+| Platform | Instruction file |
+|---|---|
+| Claude | `CLAUDE.md` |
+| Codex / Agents | `AGENTS.md` |
+| GitHub Copilot | `.github/copilot-instructions.md` |
+
+The pointer is a delimited, idempotent block: it never overwrites your own
+content, and `whyloom uninstall --project` removes only that block. Opt out with
+`whyloom install --project --no-guidance`.
+
 For an existing repository, prepare project memory with one command:
 
 ```bash

@@ -181,10 +181,12 @@ def install_skills(
     home: Path | None = None,
     environment: dict[str, str] | None = None,
     source_root: Path | None = None,
+    guidance: bool = True,
 ) -> dict[str, Any]:
     source_root = source_root or bundled_skills_root()
     destinations = resolve_destinations(platform, project=project, root=root, home=home, environment=environment)
     results: list[dict[str, str]] = []
+    guidance_results: list[dict[str, str]] = []
     for resolved_platform, base in destinations:
         for skill in SKILL_NAMES:
             source = source_root / skill
@@ -200,7 +202,13 @@ def install_skills(
                     "action": action,
                 }
             )
-    return {"operation": "install", "project": project, "results": results}
+        # A memory-file pointer makes the query/capture loop non-optional, not
+        # just skill-description-matched. Only meaningful for project scope.
+        if guidance and project:
+            from .guidance import inject_guidance
+
+            guidance_results.append(inject_guidance(root.resolve(), resolved_platform))
+    return {"operation": "install", "project": project, "results": results, "guidance": guidance_results}
 
 
 def uninstall_skills(
@@ -232,4 +240,14 @@ def uninstall_skills(
                     "action": action,
                 }
             )
-    return {"operation": "uninstall", "project": project, "results": results}
+    guidance_results: list[dict[str, str]] = []
+    if project:
+        from .guidance import remove_guidance
+
+        seen: set[str] = set()
+        for resolved_platform, _ in destinations:
+            if resolved_platform.value in seen:
+                continue
+            seen.add(resolved_platform.value)
+            guidance_results.append(remove_guidance(root.resolve(), resolved_platform))
+    return {"operation": "uninstall", "project": project, "results": results, "guidance": guidance_results}
