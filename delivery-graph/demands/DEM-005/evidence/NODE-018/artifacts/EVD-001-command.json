@@ -1,0 +1,16 @@
+{
+  "kind": "command",
+  "command": [
+    "/Users/rafael/Github/DataGeek/whyloom/.venv/bin/python",
+    "-m",
+    "pytest",
+    "-q",
+    "tests/test_bootstrap.py::test_bootstrap_collects_bounded_evidence_without_changing_records",
+    "tests/test_release_contract.py::test_bundled_skills_complete_pending_onboarding_without_a_user_prompt"
+  ],
+  "exit_code": 0,
+  "stdout": "..                                                                       [100%]\n2 passed in 2.34s\n",
+  "stderr": "",
+  "created_at": "2026-07-17T18:59:36.199Z",
+  "artifacts": []
+}

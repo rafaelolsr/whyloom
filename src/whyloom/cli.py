@@ -246,7 +246,7 @@ def reflect_command(
 ) -> None:
     resolved, config = project(root, as_json)
     diff_text = diff_file.read_text(encoding="utf-8") if diff_file else None
-    emit(reflect_project(resolved, task_summary, diff_text, config["records_dir"]), as_json)
+    emit(reflect_project(resolved, task_summary, diff_text, config), as_json)
 
 
 if __name__ == "__main__":

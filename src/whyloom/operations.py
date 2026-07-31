@@ -7,11 +7,61 @@ from pathlib import Path
 
 import yaml
 
+from .codegraph import source_hash as compute_source_hash
 from .config import DEFAULT_CONFIG, resolve_repository_path
+from .indexer import discover_code_paths
 from .migrations import INDEX_FORMAT_VERSION
 from .models import Diagnostic
 from .records import discover_records
 from .store import GraphStore
+
+# Whyloom-managed scaffolding is never the subject of a learning; excluding it
+# keeps reflect targets focused on the code and records that actually changed.
+_REFLECT_TARGET_NOISE = (".whyloom/templates/", ".whyloom/overview.md", ".whyloom/glossary.md", ".gitignore")
+
+
+def _filesystem_changed_paths(root: Path, config: dict) -> tuple[list[str], list[str]]:
+    """Detect changed and new source paths without Git by comparing on-disk
+    hashes against the last indexed hash stored in the graph."""
+    discovered, _ = discover_code_paths(root, config)
+    changed: list[str] = []
+    warnings: list[str] = []
+    store_path = resolve_repository_path(root, config["database"])
+    if not store_path.exists():
+        warnings.append("No index exists; run whyloom index so filesystem change detection has a baseline.")
+        return sorted(path.relative_to(root).as_posix() for path in discovered), warnings
+    with GraphStore(store_path, create=False) as store:
+        for path in discovered:
+            rel = path.relative_to(root).as_posix()
+            try:
+                current = compute_source_hash(path)
+            except OSError:
+                continue
+            if store.source_hash(rel) != current:
+                changed.append(rel)
+    return sorted(changed), warnings
+
+
+def _changed_symbols(root: Path, config: dict, paths: list[str]) -> dict[str, list[str]]:
+    """Return the indexed symbols per changed source file so an agent brief can
+    show what structurally changed, not just which files were touched."""
+    source_paths = [p for p in paths if p.endswith(".py")]
+    if not source_paths:
+        return {}
+    store_path = resolve_repository_path(root, config["database"])
+    if not store_path.exists():
+        return {}
+    brief: dict[str, list[str]] = {}
+    with GraphStore(store_path, create=False) as store:
+        for rel in source_paths:
+            rows = store.connection.execute(
+                "SELECT label FROM nodes WHERE source_path = ? AND type = 'Symbol' ORDER BY label",
+                (rel,),
+            ).fetchall()
+            symbols = [row["label"] for row in rows]
+            if symbols:
+                brief[rel] = symbols
+    return brief
 
 OVERVIEW = """# Project overview
 
@@ -214,57 +264,90 @@ def doctor_project(root: Path, config: dict) -> dict:
     }
 
 
+def _git_changed_paths(root: Path) -> tuple[list[str], str, list[str]]:
+    """Return changed paths from Git, the baseline used, and any warnings.
+    Falls through to an empty result (never raises) when Git is unavailable so
+    callers can degrade to filesystem change detection."""
+    warnings: list[str] = []
+    try:
+        inside_repo = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            cwd=root,
+            check=False,
+            capture_output=True,
+            text=True,
+        ).stdout.strip() == "true"
+    except OSError:
+        return [], "unavailable", warnings
+    if not inside_repo:
+        # No repository at all: let filesystem change detection own this run.
+        return [], "unavailable", warnings
+    has_head = subprocess.run(
+        ["git", "rev-parse", "--verify", "HEAD"],
+        cwd=root,
+        check=False,
+        capture_output=True,
+        text=True,
+    ).returncode == 0
+    baseline = "HEAD" if has_head else "none"
+    if not has_head:
+        warnings.append("No Git baseline exists; untracked files may represent the entire repository.")
+    diff_command = ["git", "diff"]
+    if has_head:
+        diff_command.append("HEAD")
+    diff_command.extend(["--", "."])
+    diff_text = subprocess.run(diff_command, cwd=root, check=False, capture_output=True, text=True).stdout
+    status_text = subprocess.run(
+        ["git", "status", "--porcelain=v1", "--untracked-files=all", "-z"],
+        cwd=root,
+        check=False,
+        capture_output=True,
+        text=True,
+    ).stdout
+    changed: list[str] = []
+    for line in diff_text.splitlines():
+        if line.startswith("+++ b/"):
+            changed.append(line.removeprefix("+++ b/"))
+    for entry in status_text.split("\0"):
+        if len(entry) >= 4:
+            changed.append(entry[3:])
+    return changed, baseline, warnings
+
+
 def reflect_project(
     root: Path,
     task_summary: str,
     diff_text: str | None = None,
-    records_dir: str = ".whyloom",
+    config: dict | None = None,
 ) -> dict:
     root = root.resolve()
-    status_text = ""
+    config = config or dict(DEFAULT_CONFIG)
+    records_dir = config["records_dir"]
     warnings: list[str] = []
-    baseline = "provided_diff" if diff_text is not None else "HEAD"
-    if diff_text is None:
-        try:
-            has_head = subprocess.run(
-                ["git", "rev-parse", "--verify", "HEAD"],
-                cwd=root,
-                check=False,
-                capture_output=True,
-                text=True,
-            ).returncode == 0
-            baseline = "HEAD" if has_head else "none"
-            if not has_head:
-                warnings.append("No Git baseline exists; untracked files may represent the entire repository.")
-            diff_command = ["git", "diff"]
-            if has_head:
-                diff_command.append("HEAD")
-            diff_command.extend(["--", "."])
-            diff_text = subprocess.run(
-                diff_command,
-                cwd=root,
-                check=False,
-                capture_output=True,
-                text=True,
-            ).stdout
-            status_text = subprocess.run(
-                ["git", "status", "--porcelain=v1", "--untracked-files=all", "-z"],
-                cwd=root,
-                check=False,
-                capture_output=True,
-                text=True,
-            ).stdout
-        except OSError:
-            diff_text = ""
-            baseline = "unavailable"
-            warnings.append("Git is unavailable; no changed paths could be inferred.")
-    changed_paths = []
-    for line in diff_text.splitlines():
-        if line.startswith("+++ b/"):
-            changed_paths.append(line.removeprefix("+++ b/"))
-    for entry in status_text.split("\0"):
-        if len(entry) >= 4:
-            changed_paths.append(entry[3:])
+
+    if diff_text is not None:
+        baseline = "provided_diff"
+        changed_paths = [
+            line.removeprefix("+++ b/") for line in diff_text.splitlines() if line.startswith("+++ b/")
+        ]
+    else:
+        changed_paths, baseline, warnings = _git_changed_paths(root)
+        if not changed_paths:
+            # Git is absent or found nothing: detect changes from indexed hashes
+            # so reflect works on any folder, no version control required.
+            fs_changed, fs_warnings = _filesystem_changed_paths(root, config)
+            if fs_changed:
+                changed_paths = fs_changed
+                if baseline == "unavailable":
+                    baseline = "filesystem"
+            warnings.extend(fs_warnings)
+
+    # Drop Whyloom's own scaffolding so targets name what the work actually changed.
+    changed_paths = sorted(
+        {p for p in changed_paths if not any(p == n or p.startswith(n) for n in _REFLECT_TARGET_NOISE)}
+    )
+    symbol_brief = _changed_symbols(root, config, changed_paths)
+
     stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S-%f")
     proposal_id = f"PROP-{stamp}"
     path = root / records_dir / "proposals" / f"{proposal_id.lower()}.md"
@@ -275,25 +358,50 @@ def reflect_project(
         "title": f"Review learning from: {task_summary[:72]}",
         "status": "proposed",
         "date": date.today().isoformat(),
-        "targets": sorted(set(changed_paths)),
+        "targets": changed_paths,
         "constraints": [],
         "supersedes": [],
     }
+
+    evidence_lines = []
+    for item in changed_paths:
+        symbols = symbol_brief.get(item)
+        if symbols:
+            evidence_lines.append(f"- `{item}` — symbols: {', '.join(symbols)}")
+        else:
+            evidence_lines.append(f"- `{item}`")
+
     body = (
         "---\n"
         + yaml.safe_dump(metadata, sort_keys=False)
-        + "---\n\n## Context\n\n"
+        + "---\n\n"
+        + "<!-- agent: complete every section below from the task summary, the changed files, and their symbols. "
+        + "Cite evidence paths. State confidence. Record uncertainty as open questions. Do not invent rationale. -->\n\n"
+        + "## Context\n\n"
         + task_summary.strip()
-        + "\n\n## Proposed learning\n\nReview the task and diff, then replace this text with concise project rationale.\n"
-        + "\n## Evidence\n\n"
-        + ("\n".join(f"- `{item}`" for item in sorted(set(changed_paths))) or "- No changed paths were detected.")
+        + "\n\n## Decision\n\n<!-- agent: the concrete choice this work embodies. -->\n\n"
+        + "## Rationale\n\n<!-- agent: why this choice, grounded in the changed symbols and evidence below. -->\n\n"
+        + "## Alternatives\n\n<!-- agent: options considered and why they were not chosen; omit if unknown. -->\n\n"
+        + "## Consequences\n\n<!-- agent: follow-up work, costs, and constraints this introduces. -->\n\n"
+        + "## Open questions\n\n<!-- agent: anything you could not determine from the evidence. -->\n\n"
+        + "## Evidence\n\n"
+        + ("\n".join(evidence_lines) or "- No changed paths were detected.")
         + "\n"
     )
     path.write_text(body, encoding="utf-8")
     return {
         "proposal": path.relative_to(root).as_posix(),
         "status": "proposed",
-        "changed_paths": sorted(set(changed_paths)),
+        "changed_paths": changed_paths,
+        "agent_brief": {
+            "task_summary": task_summary.strip(),
+            "changed_symbols": symbol_brief,
+            "sections_to_complete": ["Decision", "Rationale", "Alternatives", "Consequences", "Open questions"],
+            "instruction": (
+                "Fill each marked section from the task summary, changed files, and symbols. "
+                "This proposal stays status: proposed until a human accepts it in review."
+            ),
+        },
         "requires_review": True,
         "baseline": baseline,
         "warnings": warnings,

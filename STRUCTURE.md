@@ -80,6 +80,8 @@ validate the resulting project memory, and close it with `whyloom onboard
 
 - `File`
 - `Symbol`
+- `ConfigKey`
+- `Community`
 - `Decision`
 - `Constraint`
 
@@ -89,12 +91,18 @@ Architecture and incident records can initially be represented as typed records,
 
 - `CONTAINS`: a file contains a symbol.
 - `IMPORTS`: a file or symbol imports another unit.
+- `CALLS`: a symbol invokes another resolved symbol.
+- `INHERITS`: a class extends another resolved class.
+- `REFERENCES`: code refers to another symbol or configuration key.
+- `CONFIGURES`: a structured configuration file declares a key path.
+- `MEMBER_OF`: an implementation file belongs to a structural community.
 - `APPLIES_TO`: a decision or constraint names implementation targets.
 - `IMPLEMENTS`: code implements an accepted decision.
 - `CONSTRAINED_BY`: a decision, file, or symbol is governed by a constraint.
 - `SUPERSEDES`: a record replaces an earlier record.
 
-Every edge stores origin, evidence, confidence, and last-indexed hash. Explicit record links outrank inferred code relationships.
+Every edge stores origin, evidence, `EXTRACTED`, `INFERRED`, or `AMBIGUOUS`
+provenance, confidence, and last-indexed hash. Explicit record links outrank inferred code relationships.
 
 ## Record contract
 
@@ -145,7 +153,10 @@ Owns schemas, Markdown parsing, templates, lifecycle rules, and validation. It d
 
 ### Code graph layer
 
-Extracts files, symbols, imports, and definitions through language adapters.
+Extracts files, symbols, imports, definitions, calls, inheritance, references,
+and structured configuration keys through language adapters. A project-wide
+resolution pass connects relationships that cross source files, then stable
+structural communities expose coverage and cross-subsystem workflows.
 The first adapter uses Python's standard AST for a deterministic zero-compile
 MVP; tree-sitter remains the planned path for widening language coverage.
 

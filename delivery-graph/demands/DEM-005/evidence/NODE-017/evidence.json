@@ -1,0 +1,21 @@
+{
+  "node_id": "NODE-017",
+  "items": [
+    {
+      "id": "EVD-001",
+      "kind": "command",
+      "summary": "Repeated indexing produces stable communities and a manifest accounting for every indexed implementation file.",
+      "satisfies": "Community stability and complete coverage tests pass",
+      "artifact": "artifacts/EVD-001-command.json",
+      "command": [
+        "/Users/rafael/Github/DataGeek/whyloom/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_structural_graph.py::test_structural_communities_are_stable"
+      ],
+      "exit_code": 0,
+      "created_at": "2026-07-17T18:59:36.195Z"
+    }
+  ]
+}

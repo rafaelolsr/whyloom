@@ -19,7 +19,7 @@ FIXTURE = Path(__file__).parent / "fixtures" / "sample_repo"
 def test_version_flag_works_without_command():
     result = CliRunner().invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert result.stdout.strip() == "0.5.1"
+    assert result.stdout.strip() == "0.6.0"
 
 
 def test_config_rejects_paths_outside_repository():
@@ -101,7 +101,7 @@ def test_schema_migrates_existing_v1_database(tmp_path):
         columns = {row[1] for row in store.connection.execute("PRAGMA table_info(sources)")}
         version = store.connection.execute("SELECT MAX(version) FROM migration_history").fetchone()[0]
     assert "index_version" in columns
-    assert version == 2
+    assert version == 3
 
 
 def test_index_format_upgrade_forces_reindex(tmp_path):

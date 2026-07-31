@@ -11,21 +11,25 @@ the `0.x` MVP line.
 
 Graph evidence contains `id`, `type`, `label`, `path`, `source_path`,
 `source_hash`, `data`, `distance`, `score`, and the typed `via` edge when the
-item was reached by traversal. Every relationship includes its origin and
+item was reached by traversal. Every relationship includes its origin,
+`EXTRACTED`, `INFERRED`, or `AMBIGUOUS` provenance, confidence, and
 evidence path so an agent can verify it before acting.
 
 ## Command guarantees
 
 - `install`: operation, project scope, and one result per platform and skill with destination and action.
 - `uninstall`: removes only Whyloom-owned skill directories and reports absent directories without error.
-- `index`: changed, unchanged, and removed sources plus diagnostics and current onboarding status.
+- `index`: changed, unchanged, and removed sources, structural coverage and its
+  manifest path, diagnostics, and current onboarding status.
 - `onboard`: initialization and bootstrap results plus a `pending`, `completed`,
   `not_started`, or `invalid` onboarding lifecycle. `--complete` requires a
   summary and valid project memory before closing a request.
-- `bootstrap`: index result, evidence coverage, generated manifest and report paths,
+- `bootstrap`: index result, stratified evidence coverage, structural community
+  coverage, generated manifest and report paths,
   truncation state, and `canonical_records_changed: false`.
 - `context`: task, governing records, files, evidence, warnings, and unresolved questions.
-  With `--compact`, evidence is reduced to governing record references and file paths.
+  With `--compact`, evidence is reduced to governing records, files, symbols,
+  relationships, communities, warnings, and unresolved questions.
 - `explain`: target resolution, governing records, related code, evidence, and knowledge gaps.
 - `impact`: affected code and records plus traversal evidence.
 - `validate`: validity, record count, errors, and warnings; exits nonzero when invalid.

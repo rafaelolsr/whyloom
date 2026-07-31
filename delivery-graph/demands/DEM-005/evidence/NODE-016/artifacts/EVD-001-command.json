@@ -1,0 +1,16 @@
+{
+  "kind": "command",
+  "command": [
+    "/Users/rafael/Github/DataGeek/whyloom/.venv/bin/python",
+    "-m",
+    "pytest",
+    "-q",
+    "tests/test_structural_graph.py::test_project_resolution_configuration_and_communities",
+    "tests/test_structural_graph.py::test_config_reference_resolution_ignores_ambiguous_generic_keys"
+  ],
+  "exit_code": 0,
+  "stdout": "..                                                                       [100%]\n2 passed in 0.56s\n",
+  "stderr": "",
+  "created_at": "2026-07-17T18:59:34.402Z",
+  "artifacts": []
+}

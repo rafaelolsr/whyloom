@@ -27,9 +27,11 @@ Do not use the ongoing reflection loop to fabricate an initial project history.
 3. Run `whyloom doctor --json` to identify missing configuration, index, or invalid records.
 4. Run `whyloom index --json` when the index may be absent or stale.
 5. Run `whyloom context "<current task>" --compact --json`.
-6. Read the returned governing records and relevant source paths.
-7. Verify high-impact claims in those files before editing.
-8. Surface warnings and unresolved questions instead of manufacturing intent.
+6. Read the returned governing records, symbols, relationships, communities, and source paths.
+7. Treat `EXTRACTED` relationships as structural evidence and `INFERRED` or
+   `AMBIGUOUS` relationships as prompts for source verification.
+8. Verify high-impact claims in the cited files before editing.
+9. Surface warnings and unresolved questions instead of manufacturing intent.
 
 If no governing record is returned, say that rationale is unrecorded. Do not
 treat missing knowledge as permission to invent a project decision.
@@ -51,15 +53,25 @@ Run:
 whyloom reflect --task-summary "<what changed and why>" --json
 ```
 
-Open the generated proposal, replace placeholder language with concise evidence,
-and leave it `proposed` for normal human review. Never accept a record on the
-agent's own authority.
+The command returns an `agent_brief` (the task summary, changed paths, and the
+symbols in each changed file) and writes a proposal skeleton with `<!-- agent: -->`
+prompts. Complete it yourself: open the generated proposal and fill the
+`Decision`, `Rationale`, `Alternatives`, `Consequences`, and `Open questions`
+sections from the brief and the diff. Ground every claim in the listed evidence
+paths and symbols, state confidence, and record anything uncertain as an open
+question instead of inventing rationale. Leave the record `proposed` for normal
+human review. Never accept a record on the agent's own authority.
+
+Reflect works without Git: when no repository or diff is available it detects
+changed files from the index (`baseline: filesystem`), so it can capture learning
+in any folder.
 
 ## Evidence rules
 
 - Prefer accepted or implemented records for governing intent.
 - Preserve record IDs and source paths in the response.
 - Distinguish explicit record links from inferred code relationships.
+- Cite relationship evidence and provenance when explaining an implementation path.
 - Treat `.whyloom/cache/graph.sqlite` as a cache, never as canonical truth.
 - Do not request or store private chain-of-thought; capture concise rationale,
   evidence, alternatives, and consequences.

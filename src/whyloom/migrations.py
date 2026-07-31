@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import sqlite3
 
-SCHEMA_VERSION = 2
-INDEX_FORMAT_VERSION = 2
+SCHEMA_VERSION = 3
+INDEX_FORMAT_VERSION = 3
 
 MIGRATIONS = {
     1: """
@@ -29,6 +29,7 @@ MIGRATIONS = {
     2: """
     ALTER TABLE sources ADD COLUMN index_version INTEGER NOT NULL DEFAULT 0;
     """,
+    3: "",
 }
 
 
@@ -42,6 +43,19 @@ def apply_migrations(connection: sqlite3.Connection) -> None:
     if current > SCHEMA_VERSION:
         raise RuntimeError(f"graph schema {current} is newer than supported version {SCHEMA_VERSION}")
     for version in range(current + 1, SCHEMA_VERSION + 1):
+        if version == 3:
+            connection.execute(
+                "CREATE TABLE IF NOT EXISTS edges ("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT NOT NULL, target TEXT NOT NULL, "
+                "type TEXT NOT NULL, origin TEXT NOT NULL, evidence TEXT NOT NULL, "
+                "confidence REAL NOT NULL, source_path TEXT NOT NULL, source_hash TEXT NOT NULL, "
+                "provenance TEXT NOT NULL DEFAULT 'EXTRACTED', UNIQUE(source, target, type, evidence))"
+            )
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(edges)")}
+            if "provenance" not in columns:
+                connection.execute("ALTER TABLE edges ADD COLUMN provenance TEXT NOT NULL DEFAULT 'EXTRACTED'")
+            connection.execute("INSERT INTO migration_history(version) VALUES (?)", (version,))
+            continue
         migration = MIGRATIONS.get(version)
         if migration is None:
             raise RuntimeError(f"missing graph migration {version}")
