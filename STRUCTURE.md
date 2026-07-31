@@ -230,6 +230,10 @@ Returns a compact, ranked task packet: relevant files and symbols, governing dec
 
 Traverses outward from a file, symbol, decision, or constraint and groups likely affected artifacts by relationship and confidence.
 
+### `whyloom path <source> <target>`
+
+Runs a breadth-first shortest-path search between two resolved entities and returns the minimal hop sequence. Each hop names the edge type and its provenance and confidence, and the path may route through governing decisions and constraints, so the connection is auditable rather than opaque.
+
 ### `whyloom reflect`
 
 Uses an explicit task summary and Git diff to create proposal files. It never changes a record to accepted automatically.

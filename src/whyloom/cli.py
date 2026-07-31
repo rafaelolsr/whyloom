@@ -14,7 +14,7 @@ from .config import find_root, load_config
 from .indexer import index_project
 from .installer import AssistantPlatform, install_skills, uninstall_skills
 from .operations import doctor_project, init_project, reflect_project, validate_project
-from .retrieval import compact_context_packet, context_packet, explain_target, traverse
+from .retrieval import compact_context_packet, context_packet, explain_target, find_path, traverse
 from .store import GraphStore
 
 app = typer.Typer(no_args_is_help=True, invoke_without_command=True, help="Git-native, graph-backed project memory.")
@@ -186,6 +186,20 @@ def explain_command(
     resolved, config = project(root, as_json)
     with open_existing_store(resolved, config, as_json) as store:
         payload = explain_target(store, target, config["max_depth"], config["max_items"])
+    emit(payload, as_json)
+
+
+@app.command("path")
+def path_command(
+    source: str = typer.Argument(..., help="Start entity: a symbol, file, or record id or name."),
+    target: str = typer.Argument(..., help="End entity: a symbol, file, or record id or name."),
+    max_hops: int = typer.Option(8, "--max-hops", help="Maximum path length to search."),
+    root: Path | None = typer.Option(None, "--root"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    resolved, config = project(root, as_json)
+    with open_existing_store(resolved, config, as_json) as store:
+        payload = find_path(store, source, target, max_hops=max_hops)
     emit(payload, as_json)
 
 

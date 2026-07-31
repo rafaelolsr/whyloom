@@ -3,10 +3,45 @@ from pathlib import Path
 
 from whyloom.config import DEFAULT_CONFIG
 from whyloom.indexer import index_project
-from whyloom.retrieval import compact_context_packet, context_packet, explain_target
+from whyloom.retrieval import compact_context_packet, context_packet, explain_target, find_path
 from whyloom.store import GraphStore
 
 FIXTURE = Path(__file__).parent / "fixtures" / "sample_repo"
+
+
+def test_find_path_between_file_and_record(tmp_path):
+    root = tmp_path / "repo"
+    shutil.copytree(FIXTURE, root)
+    index_project(root, DEFAULT_CONFIG)
+    with GraphStore(root / DEFAULT_CONFIG["database"]) as store:
+        result = find_path(store, "src/sample/auth.py", "DEC-0001")
+    assert result["found"]
+    assert result["length"] >= 1
+    assert result["endpoints"]["target"] == "DEC-0001"
+    # Every hop names an edge type and provenance so the connection is auditable.
+    for hop in result["hops"]:
+        assert hop["type"]
+        assert hop["provenance"] in {"EXTRACTED", "INFERRED", "AMBIGUOUS"}
+
+
+def test_find_path_missing_endpoint(tmp_path):
+    root = tmp_path / "repo"
+    shutil.copytree(FIXTURE, root)
+    index_project(root, DEFAULT_CONFIG)
+    with GraphStore(root / DEFAULT_CONFIG["database"]) as store:
+        result = find_path(store, "src/sample/auth.py", "does-not-exist-xyz")
+    assert not result["found"]
+    assert result["warnings"]
+
+
+def test_find_path_same_node(tmp_path):
+    root = tmp_path / "repo"
+    shutil.copytree(FIXTURE, root)
+    index_project(root, DEFAULT_CONFIG)
+    with GraphStore(root / DEFAULT_CONFIG["database"]) as store:
+        result = find_path(store, "src/sample/auth.py", "src/sample/auth.py")
+    assert result["found"]
+    assert result["length"] == 0
 
 
 def test_index_context_and_explain(tmp_path):

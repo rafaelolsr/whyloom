@@ -146,11 +146,108 @@ def compact_context_packet(packet: dict) -> dict:
     }
 
 
-def explain_target(store: GraphStore, target: str, max_depth: int = 2, max_items: int = 20) -> dict:
+def _resolve_node(store: GraphStore, target: str) -> dict | None:
+    """Resolve a user-supplied target to a graph node by id, file path, or
+    lexical search — the same resolution explain and impact use."""
     node = store.node(target) or store.node(f"file:{target}")
     if node is None:
         matches = store.search(target, 1)
         node = matches[0] if matches else None
+    return node
+
+
+def find_path(store: GraphStore, source: str, target: str, max_hops: int = 8) -> dict:
+    """Return the shortest relationship path between two entities, hop by hop.
+
+    Breadth-first over the undirected graph, so the first path found is minimal
+    in hops. Each hop names the edge type and its provenance/confidence so an
+    agent can judge how much to trust the connection."""
+    start = _resolve_node(store, source)
+    end = _resolve_node(store, target)
+    warnings: list[str] = []
+    if start is None:
+        warnings.append(f"Source not found in the graph: {source}")
+    if end is None:
+        warnings.append(f"Target not found in the graph: {target}")
+    if start is None or end is None:
+        return {"source": source, "target": target, "found": False, "hops": [], "warnings": warnings}
+
+    if start["id"] == end["id"]:
+        return {
+            "source": source,
+            "target": target,
+            "found": True,
+            "length": 0,
+            "endpoints": {"source": start["id"], "target": end["id"]},
+            "hops": [],
+            "warnings": ["Source and target resolve to the same node."],
+        }
+
+    # BFS, recording the edge taken to reach each node so the path can be rebuilt.
+    previous: dict[str, tuple[str, dict]] = {}
+    visited = {start["id"]}
+    frontier = [start["id"]]
+    depth = 0
+    reached = False
+    while frontier and depth < max_hops and not reached:
+        depth += 1
+        next_frontier: list[str] = []
+        for node_id in frontier:
+            for neighbor in store.neighbors(node_id):
+                neighbor_id = neighbor["node"]["id"]
+                if neighbor_id in visited:
+                    continue
+                visited.add(neighbor_id)
+                previous[neighbor_id] = (node_id, neighbor)
+                if neighbor_id == end["id"]:
+                    reached = True
+                    break
+                next_frontier.append(neighbor_id)
+            if reached:
+                break
+        frontier = next_frontier
+
+    if end["id"] not in previous:
+        return {
+            "source": source,
+            "target": target,
+            "found": False,
+            "hops": [],
+            "warnings": warnings + [f"No path within {max_hops} hops between the resolved nodes."],
+        }
+
+    # Rebuild the path from end back to start, then reverse.
+    chain: list[dict] = []
+    cursor = end["id"]
+    while cursor != start["id"]:
+        came_from, neighbor = previous[cursor]
+        edge = neighbor["edge"]
+        chain.append(
+            {
+                "from": came_from,
+                "to": cursor,
+                "type": edge["type"],
+                "provenance": edge["provenance"],
+                "confidence": edge["confidence"],
+                "evidence": edge["evidence"],
+                "label": neighbor["node"]["label"],
+            }
+        )
+        cursor = came_from
+    chain.reverse()
+    return {
+        "source": source,
+        "target": target,
+        "found": True,
+        "length": len(chain),
+        "endpoints": {"source": start["id"], "target": end["id"]},
+        "hops": chain,
+        "warnings": warnings,
+    }
+
+
+def explain_target(store: GraphStore, target: str, max_depth: int = 2, max_items: int = 20) -> dict:
+    node = _resolve_node(store, target)
     if node is None:
         return {"target": target, "found": False, "evidence": [], "warnings": ["Target not found in the graph."]}
     items = traverse(store, [node], max_depth=max_depth, max_items=max_items)

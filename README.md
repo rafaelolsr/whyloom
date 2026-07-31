@@ -121,6 +121,7 @@ whyloom index
 whyloom explain src/auth/token_service.py
 whyloom context "change refresh-token rotation"
 whyloom impact decisions/0007-token-storage.md
+whyloom path TokenService SessionStore
 whyloom reflect --task-summary "describe the durable project learning"
 whyloom validate
 whyloom doctor
@@ -132,6 +133,7 @@ whyloom doctor
 - `explain` answers what a path or symbol does and why it exists.
 - `context` builds a compact evidence bundle for a task.
 - `impact` shows the code and records affected by a change.
+- `path` traces the shortest relationship path between two entities, hop by hop, and can route through governing decisions and constraints — not just code.
 - `reflect` proposes new or updated records after work is completed.
 - `validate` detects broken links, stale records, and contradictory active constraints.
 - `doctor` verifies that configuration, records, index, and validation are ready.
