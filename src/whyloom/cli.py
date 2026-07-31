@@ -17,7 +17,7 @@ from .operations import doctor_project, init_project, reflect_project, validate_
 from .retrieval import compact_context_packet, context_packet, explain_target, find_path, traverse
 from .store import GraphStore
 
-app = typer.Typer(no_args_is_help=True, invoke_without_command=True, help="Git-native, graph-backed project memory.")
+app = typer.Typer(no_args_is_help=True, invoke_without_command=True, help="Trusted, graph-backed project memory.")
 JSON_SCHEMA_VERSION = 1
 
 
