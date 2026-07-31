@@ -14,7 +14,7 @@
   {
     "id": "impact-constraint",
     "task": "what is affected by CON-0001",
-    "expected_records": ["CON-0001"],
+    "expected_records": ["CON-0001", "DEC-0001"],
     "expected_targets": ["src/sample/auth.py"]
   },
   {

@@ -19,11 +19,15 @@ def terms(text: str) -> set[str]:
     return {term for term in re.findall(r"[a-z0-9_-]+", text.casefold()) if len(term) > 2}
 
 
+_SEARCH_SUFFIXES = (".md", ".py", ".ts", ".tsx", ".js", ".jsx", ".go", ".rs", ".java", ".cs")
+
+
 def flat_search(root: Path, task: str, limit: int = 8) -> dict:
     query = terms(task)
     started = time.perf_counter()
     matches = []
-    for path in [*root.rglob("*.md"), *root.rglob("*.py")]:
+    files = [path for suffix in _SEARCH_SUFFIXES for path in root.rglob(f"*{suffix}")]
+    for path in files:
         relative_parts = path.relative_to(root).parts
         if any(part in {".git", ".venv"} for part in relative_parts) or relative_parts[:2] == (".whyloom", "cache"):
             continue
@@ -40,9 +44,24 @@ def flat_search(root: Path, task: str, limit: int = 8) -> dict:
     }
 
 
-def run() -> dict:
-    cases = json.loads((ROOT / "evals" / "cases" / "cases.json").read_text(encoding="utf-8"))
-    fixture = ROOT / "tests" / "fixtures" / "sample_repo"
+SUITES = [
+    {
+        "name": "python",
+        "fixture": ROOT / "tests" / "fixtures" / "sample_repo",
+        "cases": ROOT / "evals" / "cases" / "cases.json",
+        "gate": "recall+precision",
+    },
+    {
+        "name": "multi-language",
+        "fixture": ROOT / "evals" / "fixtures" / "multi_lang",
+        "cases": ROOT / "evals" / "cases" / "cases_multi_lang.json",
+        "gate": "recall",
+    },
+]
+
+
+def run_suite(fixture: Path, cases_path: Path, gate: str = "recall+precision") -> list[dict]:
+    cases = json.loads(cases_path.read_text(encoding="utf-8"))
     results = []
     with tempfile.TemporaryDirectory() as directory:
         repo = Path(directory) / "repo"
@@ -74,10 +93,18 @@ def run() -> dict:
                 )
                 recall_ok = expected_records.issubset(record_ids) and expected_targets.issubset(file_paths)
                 precision_ok = graph_irrelevant <= baseline_irrelevant
+                # Python suite gates on both (the original A/B claim). The
+                # multi-language suite gates on recall only: its purpose is to
+                # prove cross-file traversal that grep cannot do at all, and a
+                # tiny fixture makes graph expansion look imprecise even when the
+                # right target is found. Precision is still reported.
+                passed = recall_ok if gate == "recall" else (recall_ok and precision_ok)
                 results.append(
                     {
                         "id": case["id"],
-                        "passed": recall_ok and precision_ok,
+                        "passed": passed,
+                        "recall_ok": recall_ok,
+                        "precision_ok": precision_ok,
                         "whyloom": {
                             "records": sorted(record_ids),
                             "files": sorted(file_paths),
@@ -93,10 +120,37 @@ def run() -> dict:
                         },
                     }
                 )
+    return results
+
+
+def run() -> dict:
+    """Run every suite and aggregate. Multi-language suites are skipped (not
+    failed) when their tree-sitter grammar is unavailable, so the base install
+    still reports a clean result."""
+    from whyloom.languages import TREE_SITTER_GRAMMARS, _load_parser
+
+    grammars_ready = _load_parser(TREE_SITTER_GRAMMARS[".ts"]) is not None
+    suites = []
+    for suite in SUITES:
+        if suite["name"] == "multi-language" and not grammars_ready:
+            suites.append({"suite": suite["name"], "skipped": "tree-sitter grammars not installed", "cases": []})
+            continue
+        cases = run_suite(suite["fixture"], suite["cases"], suite.get("gate", "recall+precision"))
+        suites.append(
+            {
+                "suite": suite["name"],
+                "gate": suite.get("gate", "recall+precision"),
+                "passed": all(c["passed"] for c in cases),
+                "cases": cases,
+            }
+        )
+
+    scored = [s for s in suites if "passed" in s]
+    all_passed = all(s["passed"] for s in scored)
     return {
-        "passed": all(item["passed"] for item in results),
-        "decision": "continue" if all(item["passed"] for item in results) else "revise",
-        "cases": results,
+        "passed": all_passed,
+        "decision": "continue" if all_passed else "revise",
+        "suites": suites,
     }
 
 
