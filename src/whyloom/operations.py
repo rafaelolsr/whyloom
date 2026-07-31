@@ -13,11 +13,35 @@ from .indexer import discover_code_paths
 from .migrations import INDEX_FORMAT_VERSION
 from .models import Diagnostic
 from .records import discover_records
-from .store import GraphStore
+from .store import CorruptIndexError, GraphStore
 
 # Whyloom-managed scaffolding is never the subject of a learning; excluding it
 # keeps reflect targets focused on the code and records that actually changed.
 _REFLECT_TARGET_NOISE = (".whyloom/templates/", ".whyloom/overview.md", ".whyloom/glossary.md", ".gitignore")
+
+
+def stale_sources(root: Path, config: dict, store: GraphStore) -> list[str]:
+    """Return indexed source paths whose on-disk content no longer matches the
+    hash in the index, plus paths deleted since indexing. Used to warn callers
+    that retrieval may reflect an out-of-date graph."""
+    root = root.resolve()
+    indexed = store.all_source_hashes()
+    stale: list[str] = []
+    for rel, indexed_hash in indexed.items():
+        # Derived pseudo-sources (@project-relations, @communities) and bootstrap
+        # artifacts are not files on disk; skip them.
+        if rel.startswith("@"):
+            continue
+        path = root / rel
+        if not path.is_file():
+            stale.append(rel)
+            continue
+        try:
+            if compute_source_hash(path) != indexed_hash:
+                stale.append(rel)
+        except OSError:
+            stale.append(rel)
+    return sorted(stale)
 
 
 def _filesystem_changed_paths(root: Path, config: dict) -> tuple[list[str], list[str]]:
@@ -239,19 +263,42 @@ def validate_project(root: Path, config: dict) -> dict:
 def doctor_project(root: Path, config: dict) -> dict:
     root = root.resolve()
     database = resolve_repository_path(root, config["database"])
-    validation = validate_project(root, config)
     outdated_sources = 0
+    integrity_ok = True
+    stale: list[str] = []
     if database.is_file():
-        with GraphStore(database, create=False) as store:
-            outdated_sources = store.outdated_source_count(INDEX_FORMAT_VERSION)
+        try:
+            with GraphStore(database, create=False) as store:
+                integrity_ok = store.integrity_ok()
+                if integrity_ok:
+                    outdated_sources = store.outdated_source_count(INDEX_FORMAT_VERSION)
+                    stale = stale_sources(root, config, store)
+        except CorruptIndexError:
+            integrity_ok = False
+    # Validation opens the store too; a corrupt index makes it non-ready, not a crash.
+    try:
+        validation = validate_project(root, config)
+    except CorruptIndexError:
+        validation = {"valid": False, "records": 0, "errors": [{"code": "IDX003", "message": "index is corrupt"}], "warnings": []}
+        integrity_ok = False
     checks = [
         {"name": "repository", "ok": root.is_dir(), "detail": str(root)},
         {"name": "configuration", "ok": (root / "whyloom.yaml").is_file(), "detail": "whyloom.yaml"},
         {"name": "records", "ok": (root / config["records_dir"]).is_dir(), "detail": config["records_dir"]},
         {
+            "name": "integrity",
+            "ok": not database.is_file() or integrity_ok,
+            "detail": "ok" if integrity_ok else "index is corrupt; delete the cache and reindex",
+        },
+        {
             "name": "index",
-            "ok": database.is_file() and outdated_sources == 0,
+            "ok": database.is_file() and integrity_ok and outdated_sources == 0,
             "detail": config["database"] if outdated_sources == 0 else f"{outdated_sources} sources require reindexing",
+        },
+        {
+            "name": "freshness",
+            "ok": not stale,
+            "detail": "index matches working tree" if not stale else f"{len(stale)} source(s) changed since indexing",
         },
         {"name": "validation", "ok": validation["valid"], "detail": f"{validation['records']} records"},
     ]

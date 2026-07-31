@@ -15,9 +15,9 @@ from .hooks import azure_pipeline_snippet, install_hooks, uninstall_hooks
 from .indexer import index_project
 from .installer import AssistantPlatform, install_skills, uninstall_skills
 from .mapview import build_map_payload, render_map_html
-from .operations import doctor_project, init_project, reflect_project, validate_project
+from .operations import doctor_project, init_project, reflect_project, stale_sources, validate_project
 from .retrieval import compact_context_packet, context_packet, explain_target, find_path, traverse
-from .store import GraphStore
+from .store import CorruptIndexError, GraphStore
 
 app = typer.Typer(no_args_is_help=True, invoke_without_command=True, help="Trusted, graph-backed project memory.")
 JSON_SCHEMA_VERSION = 1
@@ -53,8 +53,28 @@ def project(root: Path | None, as_json: bool) -> tuple[Path, dict]:
 def open_existing_store(root: Path, config: dict, as_json: bool) -> GraphStore:
     try:
         return GraphStore(root / config["database"], create=False)
+    except CorruptIndexError as exc:
+        fail("IDX003", str(exc), as_json)
     except (FileNotFoundError, OSError) as exc:
         fail("IDX001", str(exc), as_json)
+
+
+def add_staleness_warning(payload: dict, root: Path, config: dict, store: GraphStore) -> dict:
+    """Append a warning when the graph no longer matches the working tree, so an
+    agent never acts on stale structure without knowing. Bounded and best-effort:
+    a failure to check never blocks the answer."""
+    try:
+        stale = stale_sources(root, config, store)
+    except (OSError, ValueError):
+        return payload
+    if stale:
+        sample = ", ".join(stale[:5]) + ("…" if len(stale) > 5 else "")
+        payload.setdefault("warnings", []).append(
+            f"Index is stale: {len(stale)} source(s) changed since indexing ({sample}). "
+            "Run 'whyloom index' for current results."
+        )
+        payload["stale_sources"] = stale
+    return payload
 
 
 @app.callback()
@@ -176,6 +196,7 @@ def context_command(
     resolved, config = project(root, as_json)
     with open_existing_store(resolved, config, as_json) as store:
         payload = context_packet(store, task, config["max_depth"], config["max_items"])
+        payload = add_staleness_warning(payload, resolved, config, store)
     emit(compact_context_packet(payload) if compact else payload, as_json)
 
 
@@ -188,6 +209,7 @@ def explain_command(
     resolved, config = project(root, as_json)
     with open_existing_store(resolved, config, as_json) as store:
         payload = explain_target(store, target, config["max_depth"], config["max_items"])
+        payload = add_staleness_warning(payload, resolved, config, store)
     emit(payload, as_json)
 
 
@@ -202,6 +224,7 @@ def path_command(
     resolved, config = project(root, as_json)
     with open_existing_store(resolved, config, as_json) as store:
         payload = find_path(store, source, target, max_hops=max_hops)
+        payload = add_staleness_warning(payload, resolved, config, store)
     emit(payload, as_json)
 
 
@@ -272,8 +295,7 @@ def impact_command(
     with open_existing_store(resolved, config, as_json) as store:
         node = store.node(target) or store.node(f"file:{target}")
         items = traverse(store, [node], config["max_depth"], config["max_items"]) if node else []
-    emit(
-        {
+        payload = {
             "target": target,
             "found": bool(node),
             "affected": {
@@ -281,9 +303,9 @@ def impact_command(
                 "records": [item for item in items if item["type"] in {"Decision", "Constraint", "Architecture", "Incident"}],
             },
             "evidence": items,
-        },
-        as_json,
-    )
+        }
+        payload = add_staleness_warning(payload, resolved, config, store)
+    emit(payload, as_json)
 
 
 @app.command("validate")

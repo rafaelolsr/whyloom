@@ -27,6 +27,10 @@ QUERY_STOPWORDS = {
 }
 
 
+class CorruptIndexError(RuntimeError):
+    """Raised when the SQLite index cannot be opened because it is malformed."""
+
+
 def _query_terms(query: str) -> list[str]:
     expanded = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", query).replace("_", "-")
     terms = re.findall(r"[a-zA-Z0-9]+", expanded.casefold())
@@ -42,10 +46,16 @@ class GraphStore:
             path.parent.mkdir(parents=True, exist_ok=True)
         self.connection = sqlite3.connect(path, timeout=30)
         self.connection.row_factory = sqlite3.Row
-        self.connection.execute("PRAGMA busy_timeout = 30000")
-        self.connection.execute("PRAGMA journal_mode = WAL")
-        self.connection.execute("PRAGMA synchronous = NORMAL")
-        apply_migrations(self.connection)
+        try:
+            self.connection.execute("PRAGMA busy_timeout = 30000")
+            self.connection.execute("PRAGMA journal_mode = WAL")
+            self.connection.execute("PRAGMA synchronous = NORMAL")
+            apply_migrations(self.connection)
+        except sqlite3.DatabaseError as exc:
+            self.connection.close()
+            raise CorruptIndexError(
+                f"Whyloom index at {path} is corrupt; delete the cache and run 'whyloom index'"
+            ) from exc
 
     def close(self) -> None:
         self.connection.close()
@@ -76,6 +86,18 @@ class GraphStore:
     def outdated_source_count(self, index_version: int) -> int:
         row = self.connection.execute("SELECT COUNT(*) FROM sources WHERE index_version != ?", (index_version,)).fetchone()
         return int(row[0])
+
+    def all_source_hashes(self) -> dict[str, str]:
+        """Indexed hash for every tracked source path, for staleness detection."""
+        return {row["path"]: row["hash"] for row in self.connection.execute("SELECT path, hash FROM sources")}
+
+    def integrity_ok(self) -> bool:
+        """Run SQLite's integrity check so a corrupt cache is detected, not trusted."""
+        try:
+            row = self.connection.execute("PRAGMA integrity_check").fetchone()
+        except sqlite3.DatabaseError:
+            return False
+        return bool(row) and row[0] == "ok"
 
     def replace_source(
         self,

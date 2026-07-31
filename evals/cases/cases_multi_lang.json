@@ -1,0 +1,26 @@
+[
+  {
+    "id": "ts-session-governance",
+    "task": "change how sessions start without breaking token issuance",
+    "expected_records": ["DEC-0100"],
+    "expected_targets": ["src/session.ts"]
+  },
+  {
+    "id": "ts-cross-file-token",
+    "task": "modify token issuance used by the session service",
+    "expected_records": [],
+    "expected_targets": ["src/tokens.ts"]
+  },
+  {
+    "id": "go-cross-file-validation",
+    "task": "change how login validates users",
+    "expected_records": [],
+    "expected_targets": ["src/validate.go"]
+  },
+  {
+    "id": "unrelated-multi-lang",
+    "task": "update the billing invoice formatter",
+    "expected_records": [],
+    "expected_targets": []
+  }
+]
