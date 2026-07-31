@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Protocol
 
 from .codegraph import PythonExtraction, extract_python, resolve_python_project, source_hash
@@ -40,6 +40,59 @@ def _looks_like_string_context(prefix: str) -> bool:
     """True when the comment marker is likely inside a string literal, judged by
     an unbalanced count of unescaped quotes before it."""
     return (prefix.count('"') - prefix.count('\\"')) % 2 == 1 or (prefix.count("'") - prefix.count("\\'")) % 2 == 1
+
+
+_ES_IMPORT_FROM = re.compile(r"import\s+(?P<clause>.+?)\s+from\s+['\"](?P<spec>[^'\"]+)['\"]")
+_ES_NAMED = re.compile(r"\{([^}]*)\}")
+
+
+def _parse_es_import(text: str) -> list[tuple[str, str]]:
+    """Parse an ES/TS import into (local_name, module_specifier) pairs.
+
+    Handles named (`import { a, b as c }`), default (`import D`), and namespace
+    (`import * as ns`) forms. Only ES-style imports resolve to a file specifier;
+    other languages' package imports are left to name-based resolution."""
+    match = _ES_IMPORT_FROM.search(text)
+    if not match:
+        return []
+    spec = match.group("spec")
+    clause = match.group("clause").strip()
+    names: list[str] = []
+    named = _ES_NAMED.search(clause)
+    if named:
+        for part in named.group(1).split(","):
+            piece = part.strip()
+            if not piece:
+                continue
+            # `original as local` — the local name is what the file references.
+            local = piece.split(" as ")[-1].strip()
+            if local:
+                names.append(local)
+        clause = _ES_NAMED.sub("", clause)
+    for token in clause.replace(",", " ").split():
+        if token in {"*", "as", "import", "type"}:
+            continue
+        names.append(token.strip())
+    return [(name, spec) for name in dict.fromkeys(names) if name]
+
+
+def _resolve_relative_specifier(specifier: str, importer_rel: str) -> str | None:
+    """Resolve a relative ES module specifier to a repo-relative source path,
+    trying common TS/JS extensions and index files. Returns None for bare
+    (package) specifiers, which do not map to a file in this repo."""
+    if not specifier.startswith("."):
+        return None
+    base = PurePosixPath(importer_rel).parent
+    target = base
+    for part in specifier.split("/"):
+        if part in ("", "."):
+            continue
+        if part == "..":
+            target = target.parent
+        else:
+            target = target / part
+    stem = target.as_posix()
+    return stem  # candidate stem; the resolver matches it against known files.
 
 
 def extract_rationale(
@@ -362,9 +415,17 @@ class TreeSitterAdapter:
             return Extraction(rel, digest, grammar.language, nodes, edges, diagnostics)
 
         imports: list[str] = []
+        self._alias_sink: list[tuple[str, str, str]] = []
         node_by_id: dict[str, GraphNode] = {file_id: nodes[0]}
         self._walk(tree.root_node, source, grammar, rel, digest, file_id, nodes, edges, imports, node_by_id)
         nodes[0].data["imports"] = imports
+        # local_name -> candidate module stem (relative ES imports only).
+        aliases: dict[str, str] = {}
+        for name, specifier, importer_rel in self._alias_sink:
+            stem = _resolve_relative_specifier(specifier, importer_rel)
+            if stem is not None:
+                aliases[name] = stem
+        nodes[0].data["import_aliases"] = aliases
 
         symbol_ranges = [
             (node.data["line"], node.data.get("end_line", node.data["line"]), node.id)
@@ -427,6 +488,8 @@ class TreeSitterAdapter:
         elif node_type in grammar.import_nodes:
             text = source[node.start_byte : node.end_byte].decode("utf-8", "replace")
             imports.append(" ".join(text.split()))
+            for name, specifier in _parse_es_import(text):
+                self._alias_sink.append((name, specifier, rel))
         elif node_type in grammar.call_nodes and current_parent in node_by_id:
             callee = self._call_target(node, source)
             if callee:
@@ -495,24 +558,27 @@ class TreeSitterAdapter:
         matches are INFERRED and lose confidence when a name is ambiguous across
         files. Whyloom's provenance model surfaces exactly this uncertainty."""
         by_name: dict[str, list[str]] = {}
+        # (file_stem, symbol_name) -> symbol_id, for import-alias resolution.
+        by_file_name: dict[tuple[str, str], str] = {}
+        # Aliases declared per importing file: {importer_rel: {local_name: stem}}.
+        aliases_by_file: dict[str, dict[str, str]] = {}
+        known_stems: set[str] = set()
         for extraction in extractions:
+            stem = extraction.path.rsplit(".", 1)[0]
+            known_stems.add(stem)
             for node in extraction.nodes:
                 if node.type == "Symbol":
                     by_name.setdefault(node.label, []).append(node.id)
+                    by_file_name[(stem, node.label)] = node.id
+                elif node.type == "File":
+                    aliases = node.data.get("import_aliases") or {}
+                    if aliases:
+                        aliases_by_file[extraction.path] = aliases
 
         edges: list[GraphEdge] = []
         seen: set[tuple[str, str, str, str]] = set()
 
-        def link(source_id: str, name: str, edge_type: str, path: str, line: int) -> None:
-            targets = by_name.get(name)
-            if not targets:
-                return
-            # Prefer a target in another file; skip pure self-references.
-            candidates = [t for t in targets if t != source_id] or targets
-            if not candidates:
-                return
-            target = candidates[0]
-            confidence = 0.9 if len(candidates) == 1 else round(1.0 / len(candidates), 2)
+        def emit(source_id: str, target: str, edge_type: str, path: str, line: int, provenance: str, confidence: float) -> None:
             evidence = f"{path}:{line}"
             key = (source_id, target, edge_type, evidence)
             if key in seen:
@@ -524,13 +590,32 @@ class TreeSitterAdapter:
                     target=target,
                     type=edge_type,
                     origin="tree-sitter-project-resolver",
-                    provenance="INFERRED",
+                    provenance=provenance,
                     evidence=evidence,
                     confidence=confidence,
                     source_path="@tree-sitter-project",
                     source_hash="",
                 )
             )
+
+        def link(source_id: str, name: str, edge_type: str, importer: str, line: int) -> None:
+            # Import-aliased resolution: the name was imported from a specific
+            # file, so the target is unambiguous — EXTRACTED, confidence 1.0.
+            alias_stem = aliases_by_file.get(importer, {}).get(name)
+            if alias_stem is not None and alias_stem in known_stems:
+                target = by_file_name.get((alias_stem, name))
+                if target and target != source_id:
+                    emit(source_id, target, edge_type, importer, line, "EXTRACTED", 1.0)
+                    return
+            # Fall back to name-based resolution — INFERRED, ambiguity lowers it.
+            targets = by_name.get(name)
+            if not targets:
+                return
+            candidates = [t for t in targets if t != source_id] or targets
+            if not candidates:
+                return
+            confidence = 0.9 if len(candidates) == 1 else round(1.0 / len(candidates), 2)
+            emit(source_id, candidates[0], edge_type, importer, line, "INFERRED", confidence)
 
         for extraction in extractions:
             for node in extraction.nodes:

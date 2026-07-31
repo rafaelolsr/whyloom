@@ -158,6 +158,55 @@ def test_rationale_never_outranks_accepted_records(tmp_path):
             assert item["score"] < record_score
 
 
+@pytest.mark.skipif(not _grammar_available(".ts"), reason="tree-sitter TypeScript grammar not installed")
+def test_import_alias_disambiguates_colliding_names(tmp_path):
+    from whyloom.store import GraphStore
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "authA.ts").write_text("export function login(u: string) { return u; }\n", encoding="utf-8")
+    (tmp_path / "src" / "authB.ts").write_text("export function login(u: string) { return u; }\n", encoding="utf-8")
+    (tmp_path / "src" / "main.ts").write_text(
+        'import { login } from "./authA";\nexport function run(u: string) { return login(u); }\n', encoding="utf-8"
+    )
+    index_project(tmp_path, DEFAULT_CONFIG)
+    with GraphStore(tmp_path / ".whyloom" / "cache" / "graph.sqlite", create=False) as store:
+        rows = store.connection.execute(
+            "SELECT target, provenance, confidence FROM edges WHERE source = 'symbol:src/main.ts:run' AND type = 'CALLS'"
+        ).fetchall()
+    assert len(rows) == 1
+    target, provenance, confidence = rows[0]["target"], rows[0]["provenance"], rows[0]["confidence"]
+    # Resolves to the imported file (authA), not the collision (authB), as EXTRACTED.
+    assert target == "symbol:src/authA.ts:login"
+    assert provenance == "EXTRACTED"
+    assert confidence == 1.0
+
+
+@pytest.mark.skipif(not _grammar_available(".ts"), reason="tree-sitter TypeScript grammar not installed")
+def test_unaliased_call_stays_inferred(tmp_path):
+    from whyloom.store import GraphStore
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "helpers.ts").write_text("export function issueToken(u: string) { return u; }\n", encoding="utf-8")
+    (tmp_path / "src" / "main.ts").write_text(
+        "export function rotate(u: string) { return issueToken(u); }\n", encoding="utf-8"
+    )
+    index_project(tmp_path, DEFAULT_CONFIG)
+    with GraphStore(tmp_path / ".whyloom" / "cache" / "graph.sqlite", create=False) as store:
+        row = store.connection.execute(
+            "SELECT provenance FROM edges WHERE source = 'symbol:src/main.ts:rotate' AND type = 'CALLS'"
+        ).fetchone()
+    assert row["provenance"] == "INFERRED"
+
+
+def test_parse_es_import_forms():
+    from whyloom.languages import _parse_es_import
+
+    assert _parse_es_import('import { a, b as c } from "./x"') == [("a", "./x"), ("c", "./x")]
+    assert _parse_es_import('import D from "../lib/d"') == [("D", "../lib/d")]
+    assert _parse_es_import('import * as ns from "./ns"') == [("ns", "./ns")]
+    assert _parse_es_import("const x = 1") == []
+
+
 def test_all_registered_suffixes_have_globs():
     from whyloom.config import DEFAULT_INCLUDE_PATTERNS
 
