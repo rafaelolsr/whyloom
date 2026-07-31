@@ -187,7 +187,12 @@ class PythonAdapter:
     suffixes = (".py",)
 
     def extract(self, path: Path, root: Path) -> Extraction:
-        result: PythonExtraction = extract_python(path, root)
+        # Read the file once; reuse the bytes for hashing, parsing, and rationale.
+        try:
+            content = path.read_bytes()
+        except OSError:
+            content = b""
+        result: PythonExtraction = extract_python(path, root, content=content)
         nodes = list(result.nodes)
         edges = list(result.edges)
         symbol_ranges = [
@@ -195,10 +200,7 @@ class PythonAdapter:
             for node in result.nodes
             if node.type == "Symbol" and node.data.get("line")
         ]
-        try:
-            text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            text = ""
+        text = content.decode("utf-8", "replace")
         rationale_nodes, rationale_edges = extract_rationale(text, result.path, result.digest, symbol_ranges)
         nodes.extend(rationale_nodes)
         edges.extend(rationale_edges)
