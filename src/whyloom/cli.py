@@ -15,10 +15,12 @@ from .hooks import azure_pipeline_snippet, install_hooks, uninstall_hooks
 from .indexer import index_project
 from .installer import AssistantPlatform, install_skills, uninstall_skills
 from .mapview import build_map_payload, render_map_html
+from .obsidian import export_obsidian
 from .operations import (
     doctor_project,
     init_project,
     learnings_report,
+    propose_from_rationale,
     reflect_project,
     stale_sources,
     validate_project,
@@ -272,6 +274,26 @@ def hook_azure_command() -> None:
     typer.echo(azure_pipeline_snippet())
 
 
+export_app = typer.Typer(help="Export the graph to external formats.")
+app.add_typer(export_app, name="export")
+
+
+@export_app.command("obsidian")
+def export_obsidian_command(
+    output: Path = typer.Option(Path(".whyloom/cache/obsidian"), "--output", "-o", help="Vault output directory."),
+    root: Path | None = typer.Option(None, "--root"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Export the graph as an Obsidian-compatible vault of linked Markdown notes."""
+    resolved, config = project(root, as_json)
+    with open_existing_store(resolved, config, as_json) as store:
+        out_path = output if output.is_absolute() else resolved / output
+        result = export_obsidian(store, out_path)
+    if out_path.is_relative_to(resolved):
+        result["vault"] = out_path.relative_to(resolved).as_posix()
+    emit(result, as_json)
+
+
 @app.command("map")
 def map_command(
     output: Path = typer.Option(Path(".whyloom/cache/map.html"), "--output", "-o", help="Where to write the HTML map."),
@@ -316,6 +338,17 @@ def impact_command(
         }
         payload = add_staleness_warning(payload, resolved, config, store)
     emit(payload, as_json)
+
+
+@app.command("propose")
+def propose_command(
+    limit: int = typer.Option(50, "--limit", help="Maximum records to propose."),
+    root: Path | None = typer.Option(None, "--root"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Draft reviewable proposed records from in-code rationale comments (WHY/DECISION/HACK)."""
+    resolved, config = project(root, as_json)
+    emit(propose_from_rationale(resolved, config, limit=limit), as_json)
 
 
 @app.command("learnings")

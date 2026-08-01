@@ -69,9 +69,17 @@ uv tool install "whyloom[languages]"   # CLI + tree-sitter grammars (or plain `w
 cd /your/project
 whyloom install --project              # register the skill + add the agent-instruction pointer
 whyloom onboard --root .               # initialize records and build the first index
+whyloom propose                        # draft reviewable rationale from WHY/DECISION comments
 whyloom hook install                   # keep the graph fresh on every commit
+whyloom map --output graph.html        # a browsable HTML view of the graph
+whyloom export obsidian                # an Obsidian vault of the code-and-rationale graph
 whyloom doctor                         # confirm the setup is ready (integrity, index, freshness)
 ```
+
+Day one you already get a queryable graph, an HTML map, an Obsidian vault, and
+*proposed* rationale drafted from existing code comments — visible in `context`
+results but clearly marked unreviewed. Nothing an inference produced is treated
+as authoritative until you accept it.
 
 After this, your agent has the skill, an instruction-file pointer telling it to
 query before editing and capture after, and an index that stays current. Each
@@ -181,6 +189,8 @@ whyloom doctor
 - `impact` shows the code and records affected by a change.
 - `path` traces the shortest relationship path between two entities, hop by hop, and can route through governing decisions and constraints — not just code.
 - `map` renders the current graph as a self-contained, offline HTML view you can open in any browser — governed records highlighted, inferred edges distinguished.
+- `export obsidian` writes an Obsidian-compatible vault of linked Markdown notes so you can browse the code-and-rationale graph in Obsidian's graph view.
+- `propose` drafts reviewable, proposed decision records from in-code `WHY`/`DECISION`/`HACK` comments so a freshly onboarded repo has queryable rationale on day one — never accepted automatically.
 - `hook install` adds a local Git post-commit hook so the graph stays fresh automatically; it works with any remote, including GitHub, GitLab, and Azure DevOps. Use `hook azure` for a server-side Azure Pipelines snippet.
 - `reflect` proposes new or updated records after work is completed.
 - `learnings` reports pending proposals and rationale gaps (source files with no governing record) so the capture loop stays reliable; add `--changed` to scope it to recent work.

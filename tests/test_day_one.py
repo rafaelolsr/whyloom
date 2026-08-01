@@ -1,0 +1,74 @@
+"""Day-one value: proposed rationale from comments, surfaced in retrieval, and
+an Obsidian export — all without breaking the human-review trust gate."""
+
+
+from whyloom.config import DEFAULT_CONFIG
+from whyloom.indexer import index_project
+from whyloom.obsidian import export_obsidian
+from whyloom.operations import init_project, propose_from_rationale
+from whyloom.retrieval import context_packet
+from whyloom.store import GraphStore
+
+
+def _repo_with_rationale(tmp_path):
+    root = tmp_path / "repo"
+    (root / "src").mkdir(parents=True)
+    (root / "src" / "auth.py").write_text(
+        "def login(user):\n"
+        "    # WHY: refresh tokens stay server-side because XSS can read localStorage\n"
+        "    return user\n",
+        encoding="utf-8",
+    )
+    init_project(root)
+    index_project(root, DEFAULT_CONFIG)
+    return root
+
+
+def test_propose_creates_proposed_records(tmp_path):
+    root = _repo_with_rationale(tmp_path)
+    result = propose_from_rationale(root, DEFAULT_CONFIG)
+    assert result["created_count"] >= 1
+    proposal = next(iter(root.glob(".whyloom/proposals/prop-rationale-*.md")))
+    text = proposal.read_text(encoding="utf-8")
+    # The trust gate: auto-derived records are proposed, never accepted.
+    assert "status: proposed" in text
+    assert "XSS can read localStorage" in text
+
+
+def test_propose_is_idempotent(tmp_path):
+    root = _repo_with_rationale(tmp_path)
+    first = propose_from_rationale(root, DEFAULT_CONFIG)
+    second = propose_from_rationale(root, DEFAULT_CONFIG)
+    assert first["created_count"] >= 1
+    assert second["created_count"] == 0
+    assert second["skipped"] >= 1
+
+
+def test_context_surfaces_proposed_but_not_as_governing(tmp_path):
+    root = _repo_with_rationale(tmp_path)
+    propose_from_rationale(root, DEFAULT_CONFIG)
+    index_project(root, DEFAULT_CONFIG)
+    with GraphStore(root / DEFAULT_CONFIG["database"], create=False) as store:
+        packet = context_packet(store, "login refresh token")
+    # Proposed rationale is visible...
+    assert packet["proposed_records"]
+    assert all(r.get("data", {}).get("status") == "proposed" for r in packet["proposed_records"])
+    # ...but never counted as governing (accepted) intent.
+    assert packet["governing_records"] == []
+    assert any("review before trusting" in w for w in packet["warnings"])
+
+
+def test_export_obsidian_builds_linked_vault(tmp_path):
+    root = _repo_with_rationale(tmp_path)
+    propose_from_rationale(root, DEFAULT_CONFIG)
+    index_project(root, DEFAULT_CONFIG)
+    out = tmp_path / "vault"
+    with GraphStore(root / DEFAULT_CONFIG["database"], create=False) as store:
+        result = export_obsidian(store, out)
+    assert result["notes_written"] > 0
+    assert (out / "README.md").exists()
+    # Notes use Obsidian wikilinks for relationships.
+    all_text = "\n".join(p.read_text(encoding="utf-8") for p in out.rglob("*.md"))
+    assert "[[" in all_text and "]]" in all_text
+    # Proposed records are labeled as unreviewed in the vault.
+    assert "Proposed" in all_text
