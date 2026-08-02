@@ -30,7 +30,7 @@ def learnings_report(root: Path, config: dict, changed_only: bool = False) -> di
     (Git if available, else filesystem hashes), which is what a post-work agent
     should reflect on."""
     root = root.resolve()
-    database = resolve_repository_path(root, config["database"])
+    database = _index_path(root, config)
     proposals_dir = root / config["records_dir"] / "proposals"
     proposals = sorted(p.relative_to(root).as_posix() for p in proposals_dir.glob("*.md")) if proposals_dir.is_dir() else []
 
@@ -83,6 +83,21 @@ def learnings_report(root: Path, config: dict, changed_only: bool = False) -> di
 _PROPOSABLE_TAGS = {"WHY", "DECISION", "HACK"}
 
 
+def _index_path(root: Path, config: dict) -> Path:
+    return resolve_repository_path(root, config["database"])
+
+
+def _render_record_markdown(metadata: dict, sections: list[tuple[str, str]], preamble: str = "") -> str:
+    """Render a record/proposal file: YAML front matter, an optional HTML-comment
+    preamble, then ``## Heading`` blocks in the given order. Shared by reflect and
+    propose so their proposal formats cannot drift."""
+    parts = ["---\n", yaml.safe_dump(metadata, sort_keys=False), "---\n\n"]
+    if preamble:
+        parts.append(preamble.rstrip("\n") + "\n\n")
+    parts.extend(f"## {heading}\n\n{body.rstrip(chr(10))}\n\n" for heading, body in sections)
+    return "".join(parts).rstrip("\n") + "\n"
+
+
 def propose_from_rationale(root: Path, config: dict, *, limit: int = 50) -> dict:
     """Turn high-signal in-code rationale (WHY/DECISION/HACK comments) into
     reviewable proposed decision records, so a freshly onboarded repo has
@@ -92,7 +107,7 @@ def propose_from_rationale(root: Path, config: dict, *, limit: int = 50) -> dict
     a comment. Records land as status: proposed and are never accepted
     automatically — a human still reviews before they become authoritative."""
     root = root.resolve()
-    database = resolve_repository_path(root, config["database"])
+    database = _index_path(root, config)
     if not database.is_file():
         return {"created": [], "skipped": 0, "reason": "no index; run whyloom index first"}
 
@@ -126,31 +141,26 @@ def propose_from_rationale(root: Path, config: dict, *, limit: int = 50) -> dict
             continue
         headline = notes[0]["note"][:72] if notes[0].get("note") else path
         evidence = "\n".join(f"- `{path}:{n['line']}` — {n['tag']}: {n['note']}" for n in notes)
-        body = (
-            "---\n"
-            + yaml.safe_dump(
-                {
-                    "id": f"PROP-RATIONALE-{slug[:40]}",
-                    "type": "decision",
-                    "title": f"Recorded rationale in {path}: {headline}",
-                    "status": "proposed",
-                    "date": date.today().isoformat(),
-                    "targets": [path],
-                    "constraints": [],
-                    "supersedes": [],
-                },
-                sort_keys=False,
-            )
-            + "---\n\n"
-            + "<!-- Auto-derived from in-code rationale comments during onboarding. "
-            + "Review, refine, and accept (or delete) before treating as authoritative. -->\n\n"
-            + "## Context\n\n"
-            + f"The author left rationale comments in `{path}`. They are captured here for review.\n\n"
-            + "## Decision\n\n<!-- Restate the decision these comments imply, then accept. -->\n\n"
-            + "## Rationale\n\n"
-            + evidence
-            + "\n\n## Alternatives\n\n<!-- If the comments name rejected options, record them. -->\n\n"
-            + "## Consequences\n\n<!-- Follow-up work or constraints implied. -->\n"
+        body = _render_record_markdown(
+            {
+                "id": f"PROP-RATIONALE-{slug[:40]}",
+                "type": "decision",
+                "title": f"Recorded rationale in {path}: {headline}",
+                "status": "proposed",
+                "date": date.today().isoformat(),
+                "targets": [path],
+                "constraints": [],
+                "supersedes": [],
+            },
+            [
+                ("Context", f"The author left rationale comments in `{path}`. They are captured here for review."),
+                ("Decision", "<!-- Restate the decision these comments imply, then accept. -->"),
+                ("Rationale", evidence),
+                ("Alternatives", "<!-- If the comments name rejected options, record them. -->"),
+                ("Consequences", "<!-- Follow-up work or constraints implied. -->"),
+            ],
+            preamble="<!-- Auto-derived from in-code rationale comments during onboarding. "
+            "Review, refine, and accept (or delete) before treating as authoritative. -->",
         )
         (proposals_dir / filename).write_text(body, encoding="utf-8")
         created.append((proposals_dir / filename).relative_to(root).as_posix())
@@ -197,7 +207,7 @@ def _filesystem_changed_paths(root: Path, config: dict) -> tuple[list[str], list
     discovered, _ = discover_code_paths(root, config)
     changed: list[str] = []
     warnings: list[str] = []
-    store_path = resolve_repository_path(root, config["database"])
+    store_path = _index_path(root, config)
     if not store_path.exists():
         warnings.append("No index exists; run whyloom index so filesystem change detection has a baseline.")
         return sorted(path.relative_to(root).as_posix() for path in discovered), warnings
@@ -219,7 +229,7 @@ def _changed_symbols(root: Path, config: dict, paths: list[str]) -> dict[str, li
     source_paths = [p for p in paths if p.endswith(".py")]
     if not source_paths:
         return {}
-    store_path = resolve_repository_path(root, config["database"])
+    store_path = _index_path(root, config)
     if not store_path.exists():
         return {}
     brief: dict[str, list[str]] = {}
@@ -409,7 +419,7 @@ def validate_project(root: Path, config: dict) -> dict:
 
 def doctor_project(root: Path, config: dict) -> dict:
     root = root.resolve()
-    database = resolve_repository_path(root, config["database"])
+    database = _index_path(root, config)
     outdated_sources = 0
     integrity_ok = True
     stale: list[str] = []
@@ -565,22 +575,19 @@ def reflect_project(
         else:
             evidence_lines.append(f"- `{item}`")
 
-    body = (
-        "---\n"
-        + yaml.safe_dump(metadata, sort_keys=False)
-        + "---\n\n"
-        + "<!-- agent: complete every section below from the task summary, the changed files, and their symbols. "
-        + "Cite evidence paths. State confidence. Record uncertainty as open questions. Do not invent rationale. -->\n\n"
-        + "## Context\n\n"
-        + task_summary.strip()
-        + "\n\n## Decision\n\n<!-- agent: the concrete choice this work embodies. -->\n\n"
-        + "## Rationale\n\n<!-- agent: why this choice, grounded in the changed symbols and evidence below. -->\n\n"
-        + "## Alternatives\n\n<!-- agent: options considered and why they were not chosen; omit if unknown. -->\n\n"
-        + "## Consequences\n\n<!-- agent: follow-up work, costs, and constraints this introduces. -->\n\n"
-        + "## Open questions\n\n<!-- agent: anything you could not determine from the evidence. -->\n\n"
-        + "## Evidence\n\n"
-        + ("\n".join(evidence_lines) or "- No changed paths were detected.")
-        + "\n"
+    body = _render_record_markdown(
+        metadata,
+        [
+            ("Context", task_summary.strip()),
+            ("Decision", "<!-- agent: the concrete choice this work embodies. -->"),
+            ("Rationale", "<!-- agent: why this choice, grounded in the changed symbols and evidence below. -->"),
+            ("Alternatives", "<!-- agent: options considered and why they were not chosen; omit if unknown. -->"),
+            ("Consequences", "<!-- agent: follow-up work, costs, and constraints this introduces. -->"),
+            ("Open questions", "<!-- agent: anything you could not determine from the evidence. -->"),
+            ("Evidence", "\n".join(evidence_lines) or "- No changed paths were detected."),
+        ],
+        preamble="<!-- agent: complete every section below from the task summary, the changed files, and their symbols. "
+        "Cite evidence paths. State confidence. Record uncertainty as open questions. Do not invent rationale. -->",
     )
     path.write_text(body, encoding="utf-8")
     return {
