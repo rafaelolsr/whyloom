@@ -53,3 +53,18 @@ def test_report_finds_god_nodes_and_questions(tmp_path):
     markdown = render_report_markdown(data)
     assert "# Whyloom graph report" in markdown
     assert "Suggested questions" in markdown
+
+
+def test_report_god_nodes_exclude_config_files(tmp_path):
+    root = tmp_path / "repo"
+    (root / "src").mkdir(parents=True)
+    (root / "src" / "app.py").write_text(
+        "def a():\n    return b()\n\ndef b():\n    return 1\n", encoding="utf-8"
+    )
+    (root / "config.yaml").write_text("k1: 1\nk2: 2\nk3: 3\nk4: 4\n", encoding="utf-8")
+    init_project(root)
+    index_project(root, DEFAULT_CONFIG)
+    with GraphStore(root / DEFAULT_CONFIG["database"], create=False) as store:
+        data = build_report_data(store)
+    # Config files fan out to many config keys but must not rank as code hubs.
+    assert not any(n["label"].endswith((".yaml", ".yml", ".json")) for n in data["god_nodes"])

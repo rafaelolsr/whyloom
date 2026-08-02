@@ -18,8 +18,14 @@ def build_report_data(store: GraphStore, top: int = 10) -> dict:
     nodes = {n["id"]: n for n in store.all_nodes()}
     edges = store.all_edges()
 
+    # God nodes should reflect the *code* graph, so count only code-relationship
+    # edges. Excluding CONFIGURES keeps config files (which fan out to many config
+    # keys) from masquerading as hubs.
+    _CODE_EDGES = {"CALLS", "IMPORTS", "CONTAINS", "INHERITS", "REFERENCES"}
     degree: Counter[str] = Counter()
     for edge in edges:
+        if edge["type"] not in _CODE_EDGES:
+            continue
         if edge["source"] in nodes:
             degree[edge["source"]] += 1
         if edge["target"] in nodes:
