@@ -65,7 +65,9 @@ Task-specific context for humans and agents
 The minimal setup to get Whyloom working in a project — run these in order:
 
 ```bash
-uv tool install "whyloom[languages]"   # CLI + tree-sitter grammars (or plain `whyloom` for Python-only)
+uv tool install "whyloom[languages]"   # from PyPI: CLI + tree-sitter grammars (or plain `whyloom` for Python-only)
+# or install the latest from source:
+# uv tool install "git+https://github.com/rafaelolsr/whyloom.git@main#egg=whyloom[languages]"
 cd /your/project
 whyloom install --project              # register the skill + add the agent-instruction pointer
 whyloom onboard --root .               # initialize records and build the first index
