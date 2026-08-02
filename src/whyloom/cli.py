@@ -29,6 +29,7 @@ from .operations import (
 from .report import build_report_data, render_report_markdown
 from .retrieval import compact_context_packet, context_packet, explain_target, find_path, impact_analysis
 from .store import CorruptIndexError, GraphStore
+from .usage import record_query, usage_report
 
 app = typer.Typer(no_args_is_help=True, invoke_without_command=True, help="Trusted, graph-backed project memory.")
 JSON_SCHEMA_VERSION = 1
@@ -211,6 +212,7 @@ def context_command(
     with open_existing_store(resolved, config, as_json) as store:
         payload = context_packet(store, task, config["max_depth"], config["max_items"])
         payload = add_staleness_warning(payload, resolved, config, store)
+    record_query(resolved, config, "context", task, {"files": len(payload.get("files", [])), "records": len(payload.get("governing_records", []))})
     emit(compact_context_packet(payload) if compact else payload, as_json)
 
 
@@ -224,6 +226,7 @@ def explain_command(
     with open_existing_store(resolved, config, as_json) as store:
         payload = explain_target(store, target, config["max_depth"], config["max_items"])
         payload = add_staleness_warning(payload, resolved, config, store)
+    record_query(resolved, config, "explain", target, {"found": payload.get("found", False)})
     emit(payload, as_json)
 
 
@@ -239,6 +242,7 @@ def path_command(
     with open_existing_store(resolved, config, as_json) as store:
         payload = find_path(store, source, target, max_hops=max_hops)
         payload = add_staleness_warning(payload, resolved, config, store)
+    record_query(resolved, config, "path", f"{source} -> {target}", {"found": payload.get("found", False), "hops": payload.get("length")})
     emit(payload, as_json)
 
 
@@ -420,6 +424,7 @@ def impact_command(
     with open_existing_store(resolved, config, as_json) as store:
         payload = impact_analysis(store, target, config["max_depth"], config["max_items"])
         payload = add_staleness_warning(payload, resolved, config, store)
+    record_query(resolved, config, "impact", target, payload.get("counts", {}))
     emit(payload, as_json)
 
 
@@ -432,6 +437,17 @@ def propose_command(
     """Draft reviewable proposed records from in-code rationale comments (WHY/DECISION/HACK)."""
     resolved, config = project(root, as_json)
     emit(propose_from_rationale(resolved, config, limit=limit), as_json)
+
+
+@app.command("usage")
+def usage_command(
+    recent: int = typer.Option(10, "--recent", help="How many recent queries to show."),
+    root: Path | None = typer.Option(None, "--root"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Show how often the graph answered queries — proof it is used over grep."""
+    resolved, config = project(root, as_json)
+    emit(usage_report(resolved, config, recent=recent), as_json)
 
 
 @app.command("learnings")

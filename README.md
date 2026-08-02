@@ -197,6 +197,7 @@ whyloom doctor
 - `hook install` adds a local Git post-commit hook so the graph stays fresh automatically; it works with any remote, including GitHub, GitLab, and Azure DevOps. Use `hook azure` for a server-side Azure Pipelines snippet.
 - `reflect` proposes new or updated records after work is completed.
 - `learnings` reports pending proposals and rationale gaps (source files with no governing record) so the capture loop stays reliable; add `--changed` to scope it to recent work.
+- `usage` reports how many queries the graph answered (per command) — concrete proof the agent is using the graph instead of grep.
 - `validate` detects broken links, stale records, and contradictory active constraints.
 - `doctor` verifies that configuration, records, index, and validation are ready.
 
