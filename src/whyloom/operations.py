@@ -58,7 +58,7 @@ def learnings_report(root: Path, config: dict, changed_only: bool = False) -> di
             if any(row["path"].endswith(suffix) for suffix in code_suffixes)
         }
         if changed_only:
-            changed, _, warnings = _git_changed_paths(root)
+            changed, _, _ = _git_changed_paths(root)
             if not changed:
                 changed, _ = _filesystem_changed_paths(root, config)
             scope = set(changed)
