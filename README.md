@@ -60,6 +60,31 @@ Local rationale graph
 Task-specific context for humans and agents
 ```
 
+## Quickstart
+
+The minimal setup to get Whyloom working in a project — run these in order:
+
+```bash
+uv tool install "whyloom[languages]"   # CLI + tree-sitter grammars (or plain `whyloom` for Python-only)
+cd /your/project
+whyloom install --project              # register the skill + add the agent-instruction pointer
+whyloom onboard --root .               # initialize records and build the first index
+whyloom propose                        # draft reviewable rationale from WHY/DECISION comments
+whyloom hook install                   # keep the graph fresh on every commit
+whyloom map --output graph.html        # a browsable HTML view of the graph
+whyloom export obsidian                # an Obsidian vault of the code-and-rationale graph
+whyloom doctor                         # confirm the setup is ready (integrity, index, freshness)
+```
+
+Day one you already get a queryable graph, an HTML map, an Obsidian vault, and
+*proposed* rationale drafted from existing code comments — visible in `context`
+results but clearly marked unreviewed. Nothing an inference produced is treated
+as authoritative until you accept it.
+
+After this, your agent has the skill, an instruction-file pointer telling it to
+query before editing and capture after, and an index that stays current. Each
+step is explained below.
+
 ## Install
 
 Install the isolated CLI from PyPI:
@@ -83,6 +108,20 @@ whyloom install --platform agents
 
 whyloom install --platform copilot --project --root .
 ```
+
+When you install into a project, Whyloom also adds a short pointer to your
+assistant's instruction file so the agent reliably runs the query/capture loop —
+skill auto-matching alone is probabilistic. The file is chosen per platform:
+
+| Platform | Instruction file |
+|---|---|
+| Claude | `CLAUDE.md` |
+| Codex / Agents | `AGENTS.md` |
+| GitHub Copilot | `.github/copilot-instructions.md` |
+
+The pointer is a delimited, idempotent block: it never overwrites your own
+content, and `whyloom uninstall --project` removes only that block. Opt out with
+`whyloom install --project --no-guidance`.
 
 For an existing repository, prepare project memory with one command:
 
@@ -150,8 +189,11 @@ whyloom doctor
 - `impact` shows the code and records affected by a change.
 - `path` traces the shortest relationship path between two entities, hop by hop, and can route through governing decisions and constraints — not just code.
 - `map` renders the current graph as a self-contained, offline HTML view you can open in any browser — governed records highlighted, inferred edges distinguished.
+- `export obsidian` writes an Obsidian-compatible vault of linked Markdown notes so you can browse the code-and-rationale graph in Obsidian's graph view.
+- `propose` drafts reviewable, proposed decision records from in-code `WHY`/`DECISION`/`HACK` comments so a freshly onboarded repo has queryable rationale on day one — never accepted automatically.
 - `hook install` adds a local Git post-commit hook so the graph stays fresh automatically; it works with any remote, including GitHub, GitLab, and Azure DevOps. Use `hook azure` for a server-side Azure Pipelines snippet.
 - `reflect` proposes new or updated records after work is completed.
+- `learnings` reports pending proposals and rationale gaps (source files with no governing record) so the capture loop stays reliable; add `--changed` to scope it to recent work.
 - `validate` detects broken links, stale records, and contradictory active constraints.
 - `doctor` verifies that configuration, records, index, and validation are ready.
 

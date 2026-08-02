@@ -17,6 +17,11 @@ Whyloom `0.6.0` is intended for real codebase pilots as a local CLI.
 - `context`, `explain`, `impact`, and `path` warn when an indexed source no
   longer matches the working tree, so an agent never silently acts on a stale
   graph; `doctor` reports the same freshness state.
+- Retrieval is bounded by `max_items` and stays low-single-digit-millisecond
+  regardless of repository size (measured ~2.5 ms at 2,000 files, ~4.5 ms at
+  4,000). Indexing reads each source once; cold onboarding is a one-time linear
+  cost (~4–5 ms per file), and incremental reindex on a commit hook is
+  sub-second for thousands of files. See `scripts/benchmark_scale.py`.
 - Schema and index-format versions migrate storage and force semantic reindexing after extractor changes.
 - Project-wide Python resolution records calls, inheritance, imports, and
   references with explicit provenance.

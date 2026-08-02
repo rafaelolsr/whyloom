@@ -97,17 +97,27 @@ def context_packet(store: GraphStore, task: str, max_depth: int = 2, max_items: 
     )
     seeds = candidates[: min(max_items, 5)]
     items = traverse(store, seeds, max_depth=max_depth, max_items=max_items)
-    governing = [item for item in items if item["type"] in {"Decision", "Constraint"} and item.get("data", {}).get("status") in {"accepted", "implemented"}]
+    records = [item for item in items if item["type"] in {"Decision", "Constraint"}]
+    governing = [item for item in records if item.get("data", {}).get("status") in {"accepted", "implemented"}]
+    # Proposed records carry day-one rationale but are not yet trusted; surface
+    # them separately so the caller sees the why without mistaking it for
+    # authoritative intent.
+    proposed = [item for item in records if item.get("data", {}).get("status") == "proposed"]
     files = [item for item in items if item["type"] == "File"]
     communities = [item for item in items if item["type"] == "Community"]
     warnings: list[str] = []
     if not seeds:
         warnings.append("No lexical evidence matched the task.")
-    if not governing:
+    if not governing and proposed:
+        warnings.append(
+            f"No accepted record yet; {len(proposed)} proposed record(s) carry unreviewed rationale — review before trusting."
+        )
+    elif not governing:
         warnings.append("No accepted decision or constraint was found for this task.")
     return {
         "task": task,
         "governing_records": governing,
+        "proposed_records": proposed,
         "files": files,
         "communities": communities,
         "evidence": items,
@@ -128,6 +138,16 @@ def compact_context_packet(packet: dict) -> dict:
                 "status": item.get("data", {}).get("status"),
             }
             for item in packet["governing_records"]
+        ],
+        "proposed_records": [
+            {
+                "id": item["id"],
+                "type": item["type"],
+                "title": item["label"],
+                "path": item["path"],
+                "status": "proposed",
+            }
+            for item in packet.get("proposed_records", [])
         ],
         "files": sorted({item["path"] for item in packet["files"] if item.get("path")}),
         "symbols": [

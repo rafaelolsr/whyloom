@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -18,6 +19,152 @@ from .store import CorruptIndexError, GraphStore
 # Whyloom-managed scaffolding is never the subject of a learning; excluding it
 # keeps reflect targets focused on the code and records that actually changed.
 _REFLECT_TARGET_NOISE = (".whyloom/templates/", ".whyloom/overview.md", ".whyloom/glossary.md", ".gitignore")
+
+
+def learnings_report(root: Path, config: dict, changed_only: bool = False) -> dict:
+    """Report the state of the retro-feed loop so capture is reliable, not
+    best-effort: pending proposals awaiting human review, and source files that
+    carry no governing record (rationale gaps an agent should consider filling).
+
+    With changed_only, gaps are limited to files changed since the last index
+    (Git if available, else filesystem hashes), which is what a post-work agent
+    should reflect on."""
+    root = root.resolve()
+    database = resolve_repository_path(root, config["database"])
+    proposals_dir = root / config["records_dir"] / "proposals"
+    proposals = sorted(p.relative_to(root).as_posix() for p in proposals_dir.glob("*.md")) if proposals_dir.is_dir() else []
+
+    if not database.is_file():
+        return {"proposals": proposals, "uncovered": [], "changed_only": changed_only, "index_present": False}
+
+    with GraphStore(database, create=False) as store:
+        # Files that have an incoming governing edge are "covered".
+        covered = {
+            row["target"].removeprefix("file:")
+            for row in store.connection.execute(
+                "SELECT DISTINCT target FROM edges WHERE type IN ('APPLIES_TO', 'IMPLEMENTS', 'CONSTRAINED_BY') AND target LIKE 'file:%'"
+            )
+        }
+        # Only language-source files carry logic worth explaining; configuration
+        # and generated files are not rationale gaps.
+        from .languages import default_registry
+
+        code_suffixes = default_registry().code_suffixes
+        source_files = {
+            row["path"]
+            for row in store.connection.execute(
+                "SELECT DISTINCT path FROM nodes WHERE type = 'File' AND path IS NOT NULL"
+            )
+            if any(row["path"].endswith(suffix) for suffix in code_suffixes)
+        }
+        if changed_only:
+            changed, _, warnings = _git_changed_paths(root)
+            if not changed:
+                changed, _ = _filesystem_changed_paths(root, config)
+            scope = set(changed)
+            source_files = {path for path in source_files if path in scope}
+
+    uncovered = sorted(path for path in source_files if path not in covered)
+    return {
+        "proposals": proposals,
+        "proposal_count": len(proposals),
+        "uncovered": uncovered,
+        "uncovered_count": len(uncovered),
+        "changed_only": changed_only,
+        "index_present": True,
+        "next_action": (
+            "Review pending proposals and run 'whyloom reflect' for significant uncovered changes."
+            if proposals or uncovered
+            else "Project memory is covered; no pending capture."
+        ),
+    }
+
+
+_PROPOSABLE_TAGS = {"WHY", "DECISION", "HACK"}
+
+
+def propose_from_rationale(root: Path, config: dict, *, limit: int = 50) -> dict:
+    """Turn high-signal in-code rationale (WHY/DECISION/HACK comments) into
+    reviewable proposed decision records, so a freshly onboarded repo has
+    queryable rationale on day one.
+
+    Deterministic and offline: it only restates what the author already wrote in
+    a comment. Records land as status: proposed and are never accepted
+    automatically — a human still reviews before they become authoritative."""
+    root = root.resolve()
+    database = resolve_repository_path(root, config["database"])
+    if not database.is_file():
+        return {"created": [], "skipped": 0, "reason": "no index; run whyloom index first"}
+
+    proposals_dir = root / config["records_dir"] / "proposals"
+    existing = {p.name for p in proposals_dir.glob("*.md")} if proposals_dir.is_dir() else set()
+
+    # Gather proposable rationale grouped by the file it annotates.
+    by_file: dict[str, list[dict]] = {}
+    with GraphStore(database, create=False) as store:
+        rows = store.connection.execute(
+            "SELECT id, path, data FROM nodes WHERE type = 'Rationale'"
+        ).fetchall()
+    for row in rows:
+        data = json.loads(row["data"])
+        if data.get("tag") not in _PROPOSABLE_TAGS:
+            continue
+        by_file.setdefault(row["path"], []).append({"tag": data.get("tag"), "note": data.get("note"), "line": data.get("line")})
+
+    created: list[str] = []
+    skipped = 0
+    proposals_dir.mkdir(parents=True, exist_ok=True)
+    for path in sorted(by_file):
+        if len(created) >= limit:
+            break
+        notes = sorted(by_file[path], key=lambda n: n.get("line") or 0)
+        # Stable, path-derived id so re-running onboard does not duplicate.
+        slug = re.sub(r"[^a-z0-9]+", "-", path.casefold()).strip("-")
+        filename = f"prop-rationale-{slug}.md"
+        if filename in existing:
+            skipped += 1
+            continue
+        headline = notes[0]["note"][:72] if notes[0].get("note") else path
+        evidence = "\n".join(f"- `{path}:{n['line']}` — {n['tag']}: {n['note']}" for n in notes)
+        body = (
+            "---\n"
+            + yaml.safe_dump(
+                {
+                    "id": f"PROP-RATIONALE-{slug[:40]}",
+                    "type": "decision",
+                    "title": f"Recorded rationale in {path}: {headline}",
+                    "status": "proposed",
+                    "date": date.today().isoformat(),
+                    "targets": [path],
+                    "constraints": [],
+                    "supersedes": [],
+                },
+                sort_keys=False,
+            )
+            + "---\n\n"
+            + "<!-- Auto-derived from in-code rationale comments during onboarding. "
+            + "Review, refine, and accept (or delete) before treating as authoritative. -->\n\n"
+            + "## Context\n\n"
+            + f"The author left rationale comments in `{path}`. They are captured here for review.\n\n"
+            + "## Decision\n\n<!-- Restate the decision these comments imply, then accept. -->\n\n"
+            + "## Rationale\n\n"
+            + evidence
+            + "\n\n## Alternatives\n\n<!-- If the comments name rejected options, record them. -->\n\n"
+            + "## Consequences\n\n<!-- Follow-up work or constraints implied. -->\n"
+        )
+        (proposals_dir / filename).write_text(body, encoding="utf-8")
+        created.append((proposals_dir / filename).relative_to(root).as_posix())
+
+    return {
+        "created": created,
+        "created_count": len(created),
+        "skipped": skipped,
+        "next_action": (
+            "Review the proposed rationale records and accept, refine, or delete them."
+            if created
+            else "No new proposable rationale comments found."
+        ),
+    }
 
 
 def stale_sources(root: Path, config: dict, store: GraphStore) -> list[str]:

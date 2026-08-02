@@ -23,6 +23,10 @@ def source_hash(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def source_hash_from_bytes(content: bytes) -> str:
+    return hashlib.sha256(content).hexdigest()
+
+
 def _qualname(stack: list[str], name: str) -> str:
     return ".".join([*stack, name])
 
@@ -60,9 +64,11 @@ def searchable_text(value: str) -> str:
     return " ".join(dict.fromkeys([value, *pieces, *[piece.casefold() for piece in pieces]]))
 
 
-def extract_python(path: Path, root: Path) -> PythonExtraction:
+def extract_python(path: Path, root: Path, content: bytes | None = None) -> PythonExtraction:
     rel = path.relative_to(root).as_posix()
-    digest = source_hash(path)
+    if content is None:
+        content = path.read_bytes()
+    digest = source_hash_from_bytes(content)
     module = _module_name(rel)
     file_id = f"file:{rel}"
     file_data: dict[str, Any] = {"language": "python", "module": module, "imports": []}
@@ -80,7 +86,7 @@ def extract_python(path: Path, root: Path) -> PythonExtraction:
     edges: list[GraphEdge] = []
     diagnostics: list[Diagnostic] = []
     try:
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel)
+        tree = ast.parse(content.decode("utf-8"), filename=rel)
     except (SyntaxError, UnicodeDecodeError) as exc:
         diagnostics.append(Diagnostic(code="PY001", severity="warning", message=str(exc), path=rel))
         return PythonExtraction(rel, digest, module, nodes, edges, diagnostics)
