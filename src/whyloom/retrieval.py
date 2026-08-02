@@ -5,6 +5,11 @@ from itertools import count
 
 from .store import GraphStore
 
+# Record types that can govern implementation intent.
+GOVERNING_TYPES = frozenset({"Decision", "Constraint"})
+# Statuses that make a governing record authoritative (vs proposed).
+ACCEPTED_STATUSES = frozenset({"accepted", "implemented"})
+
 EDGE_WEIGHTS = {
     "APPLIES_TO": 1.0,
     "IMPLEMENTS": 1.0,
@@ -97,8 +102,8 @@ def context_packet(store: GraphStore, task: str, max_depth: int = 2, max_items: 
     )
     seeds = candidates[: min(max_items, 5)]
     items = traverse(store, seeds, max_depth=max_depth, max_items=max_items)
-    records = [item for item in items if item["type"] in {"Decision", "Constraint"}]
-    governing = [item for item in records if item.get("data", {}).get("status") in {"accepted", "implemented"}]
+    records = [item for item in items if item["type"] in GOVERNING_TYPES]
+    governing = [item for item in records if item.get("data", {}).get("status") in ACCEPTED_STATUSES]
     # Proposed records carry day-one rationale but are not yet trusted; surface
     # them separately so the caller sees the why without mistaking it for
     # authoritative intent.
@@ -280,8 +285,8 @@ def explain_target(store: GraphStore, target: str, max_depth: int = 2, max_items
         "target": target,
         "found": True,
         "node": node,
-        "governing_records": [item for item in items if item["type"] in {"Decision", "Constraint"}],
+        "governing_records": [item for item in items if item["type"] in GOVERNING_TYPES],
         "related_code": [item for item in items if item["type"] in {"File", "Symbol"} and item["id"] != node["id"]],
         "evidence": items,
-        "knowledge_gaps": [] if any(item["type"] in {"Decision", "Constraint"} for item in items) else ["No governing record is linked to this target."],
+        "knowledge_gaps": [] if any(item["type"] in GOVERNING_TYPES for item in items) else ["No governing record is linked to this target."],
     }

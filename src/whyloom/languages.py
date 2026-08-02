@@ -241,54 +241,28 @@ class TreeSitterGrammar:
 
 # Phase 1 ships TypeScript/JavaScript; Phase 2 languages slot in as more rows.
 TREE_SITTER_GRAMMARS: dict[str, TreeSitterGrammar] = {
-    ".ts": TreeSitterGrammar(
-        "typescript",
-        "tree_sitter_typescript",
-        {
-            "function_declaration": "function",
-            "method_definition": "method",
-            "class_declaration": "class",
-        },
-        import_nodes=("import_statement",),
-        call_nodes=("call_expression",),
-        inherit_nodes=("extends_clause",),
-    ),
-    ".tsx": TreeSitterGrammar(
-        "typescript",
-        "tree_sitter_typescript",
-        {
-            "function_declaration": "function",
-            "method_definition": "method",
-            "class_declaration": "class",
-        },
-        import_nodes=("import_statement",),
-        call_nodes=("call_expression",),
-        inherit_nodes=("extends_clause",),
-    ),
-    ".js": TreeSitterGrammar(
-        "javascript",
-        "tree_sitter_javascript",
-        {
-            "function_declaration": "function",
-            "method_definition": "method",
-            "class_declaration": "class",
-        },
-        import_nodes=("import_statement",),
-        call_nodes=("call_expression",),
-        inherit_nodes=("extends_clause",),
-    ),
-    ".jsx": TreeSitterGrammar(
-        "javascript",
-        "tree_sitter_javascript",
-        {
-            "function_declaration": "function",
-            "method_definition": "method",
-            "class_declaration": "class",
-        },
-        import_nodes=("import_statement",),
-        call_nodes=("call_expression",),
-        inherit_nodes=("extends_clause",),
-    ),
+    # TypeScript and JavaScript (incl. JSX) share identical node mappings; only
+    # the grammar package differs.
+    **{
+        suffix: TreeSitterGrammar(
+            language,
+            module,
+            {
+                "function_declaration": "function",
+                "method_definition": "method",
+                "class_declaration": "class",
+            },
+            import_nodes=("import_statement",),
+            call_nodes=("call_expression",),
+            inherit_nodes=("extends_clause",),
+        )
+        for suffix, language, module in (
+            (".ts", "typescript", "tree_sitter_typescript"),
+            (".tsx", "typescript", "tree_sitter_typescript"),
+            (".js", "javascript", "tree_sitter_javascript"),
+            (".jsx", "javascript", "tree_sitter_javascript"),
+        )
+    },
     ".go": TreeSitterGrammar(
         "go",
         "tree_sitter_go",
@@ -417,13 +391,13 @@ class TreeSitterAdapter:
             return Extraction(rel, digest, grammar.language, nodes, edges, diagnostics)
 
         imports: list[str] = []
-        self._alias_sink: list[tuple[str, str, str]] = []
+        alias_sink: list[tuple[str, str, str]] = []
         node_by_id: dict[str, GraphNode] = {file_id: nodes[0]}
-        self._walk(tree.root_node, source, grammar, rel, digest, file_id, nodes, edges, imports, node_by_id)
+        self._walk(tree.root_node, source, grammar, rel, digest, file_id, nodes, edges, imports, node_by_id, alias_sink)
         nodes[0].data["imports"] = imports
         # local_name -> candidate module stem (relative ES imports only).
         aliases: dict[str, str] = {}
-        for name, specifier, importer_rel in self._alias_sink:
+        for name, specifier, importer_rel in alias_sink:
             stem = _resolve_relative_specifier(specifier, importer_rel)
             if stem is not None:
                 aliases[name] = stem
@@ -441,7 +415,7 @@ class TreeSitterAdapter:
         edges.extend(rationale_edges)
         return Extraction(rel, digest, grammar.language, nodes, edges, diagnostics)
 
-    def _walk(self, node, source, grammar, rel, digest, file_id, nodes, edges, imports, node_by_id, parent_id=None):
+    def _walk(self, node, source, grammar, rel, digest, file_id, nodes, edges, imports, node_by_id, alias_sink, parent_id=None):
         parent_id = parent_id or file_id
         current_parent = parent_id
         node_type = node.type
@@ -491,7 +465,7 @@ class TreeSitterAdapter:
             text = source[node.start_byte : node.end_byte].decode("utf-8", "replace")
             imports.append(" ".join(text.split()))
             for name, specifier in _parse_es_import(text):
-                self._alias_sink.append((name, specifier, rel))
+                alias_sink.append((name, specifier, rel))
         elif node_type in grammar.call_nodes and current_parent in node_by_id:
             callee = self._call_target(node, source)
             if callee:
@@ -499,7 +473,7 @@ class TreeSitterAdapter:
                     {"target": callee, "line": node.start_point[0] + 1}
                 )
         for child in node.children:
-            self._walk(child, source, grammar, rel, digest, file_id, nodes, edges, imports, node_by_id, current_parent)
+            self._walk(child, source, grammar, rel, digest, file_id, nodes, edges, imports, node_by_id, alias_sink, current_parent)
 
     @staticmethod
     def _name(node, source, grammar) -> str | None:
