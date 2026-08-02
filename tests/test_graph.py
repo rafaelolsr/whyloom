@@ -73,3 +73,31 @@ def test_index_context_and_explain(tmp_path):
     assert compact["files"] == ["src/sample/auth.py"]
     assert {item["id"] for item in compact["governing_records"]} == {"DEC-0001", "CON-0001"}
     assert "evidence" not in compact
+
+
+def test_impact_analysis_expands_files_to_symbols(tmp_path):
+    from whyloom.retrieval import impact_analysis
+
+    root = tmp_path / "repo"
+    shutil.copytree(FIXTURE, root)
+    index_project(root, DEFAULT_CONFIG)
+    with GraphStore(root / DEFAULT_CONFIG["database"]) as store:
+        result = impact_analysis(store, "CON-0001")
+    assert result["found"]
+    # Impact names concrete entities: the governed file's symbols, not just files.
+    assert result["affected"]["symbols"]
+    assert result["counts"]["symbols"] >= 1
+    # Grouped output separates records, files, symbols, and callers.
+    assert set(result["affected"]) == {"records", "files", "symbols", "downstream_callers"}
+
+
+def test_impact_analysis_missing_target(tmp_path):
+    from whyloom.retrieval import impact_analysis
+
+    root = tmp_path / "repo"
+    shutil.copytree(FIXTURE, root)
+    index_project(root, DEFAULT_CONFIG)
+    with GraphStore(root / DEFAULT_CONFIG["database"]) as store:
+        result = impact_analysis(store, "does-not-exist-xyz")
+    assert not result["found"]
+    assert result["warnings"]

@@ -186,6 +186,63 @@ def _resolve_node(store: GraphStore, target: str) -> dict | None:
     return node
 
 
+def impact_analysis(store: GraphStore, target: str, max_depth: int = 2, max_items: int = 20) -> dict:
+    """Assess what a change to ``target`` affects, scoped to concrete entities.
+
+    Traversal from a record reaches the files it governs; this expands those
+    files into the symbols they contain so the answer names specific code, not
+    just files. Results are grouped by how they are affected: directly governed
+    records, the files/symbols that carry the change, and the symbols that call
+    into affected symbols (downstream callers)."""
+    node = _resolve_node(store, target)
+    if node is None:
+        return {"target": target, "found": False, "affected": {}, "evidence": [], "warnings": ["Target not found in the graph."]}
+
+    items = traverse(store, [node], max_depth=max_depth, max_items=max_items)
+    seen_ids = {item["id"] for item in items}
+
+    # Expand affected files into their contained symbols, and pull direct callers
+    # of affected symbols, so impact names concrete code rather than whole files.
+    expanded: list[dict] = []
+    for item in items:
+        if item["type"] not in {"File", "Symbol"}:
+            continue
+        for neighbor in store.neighbors(item["id"]):
+            edge, other = neighbor["edge"], neighbor["node"]
+            if other["id"] in seen_ids:
+                continue
+            # File -> contained Symbol, or Symbol <- CALLS (a downstream caller).
+            is_contained = edge["type"] == "CONTAINS" and other["type"] == "Symbol"
+            is_caller = edge["type"] == "CALLS" and edge["target"] == item["id"]
+            if is_contained or is_caller:
+                seen_ids.add(other["id"])
+                expanded.append({**other, "via": edge, "distance": item.get("distance", 0) + 1})
+
+    all_items = items + expanded
+    records = [i for i in all_items if i["type"] in {"Decision", "Constraint", "Architecture", "Incident"}]
+    files = [i for i in all_items if i["type"] == "File"]
+    symbols = [i for i in all_items if i["type"] == "Symbol"]
+    callers = [
+        {"id": i["id"], "label": i["label"], "path": i.get("path"), "via": (i.get("via") or {}).get("type")}
+        for i in symbols
+        if (i.get("via") or {}).get("type") == "CALLS"
+    ]
+
+    return {
+        "target": target,
+        "found": True,
+        "affected": {
+            "records": records,
+            "files": [{"id": f["id"], "path": f.get("path") or f["label"]} for f in files],
+            "symbols": [{"id": s["id"], "name": s["label"], "path": s.get("path")} for s in symbols],
+            "downstream_callers": callers,
+        },
+        "counts": {"records": len(records), "files": len(files), "symbols": len(symbols), "callers": len(callers)},
+        "evidence": all_items,
+        "warnings": [],
+    }
+
+
 def find_path(store: GraphStore, source: str, target: str, max_hops: int = 8) -> dict:
     """Return the shortest relationship path between two entities, hop by hop.
 

@@ -27,7 +27,7 @@ from .operations import (
     validate_project,
 )
 from .report import build_report_data, render_report_markdown
-from .retrieval import compact_context_packet, context_packet, explain_target, find_path, traverse
+from .retrieval import compact_context_packet, context_packet, explain_target, find_path, impact_analysis
 from .store import CorruptIndexError, GraphStore
 
 app = typer.Typer(no_args_is_help=True, invoke_without_command=True, help="Trusted, graph-backed project memory.")
@@ -418,17 +418,7 @@ def impact_command(
 ) -> None:
     resolved, config = project(root, as_json)
     with open_existing_store(resolved, config, as_json) as store:
-        node = store.node(target) or store.node(f"file:{target}")
-        items = traverse(store, [node], config["max_depth"], config["max_items"]) if node else []
-        payload = {
-            "target": target,
-            "found": bool(node),
-            "affected": {
-                "code": [item for item in items if item["type"] in {"File", "Symbol"}],
-                "records": [item for item in items if item["type"] in {"Decision", "Constraint", "Architecture", "Incident"}],
-            },
-            "evidence": items,
-        }
+        payload = impact_analysis(store, target, config["max_depth"], config["max_items"])
         payload = add_staleness_warning(payload, resolved, config, store)
     emit(payload, as_json)
 
