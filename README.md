@@ -190,6 +190,9 @@ whyloom doctor
 - `path` traces the shortest relationship path between two entities, hop by hop, and can route through governing decisions and constraints — not just code.
 - `map` renders the current graph as a self-contained, offline HTML view you can open in any browser — governed records highlighted, inferred edges distinguished.
 - `export obsidian` writes an Obsidian-compatible vault of linked Markdown notes so you can browse the code-and-rationale graph in Obsidian's graph view.
+- `export graphml` / `export svg` write the graph as GraphML (for Gephi, yEd, NetworkX) or a static SVG image — both deterministic.
+- `report` summarizes the graph: most-connected entities ("god nodes") and suggested starter questions, optionally to `GRAPH_REPORT.md`.
+- `watch` re-indexes automatically as source files change (poll-based; an alternative to the commit hook during active development).
 - `propose` drafts reviewable, proposed decision records from in-code `WHY`/`DECISION`/`HACK` comments so a freshly onboarded repo has queryable rationale on day one — never accepted automatically.
 - `hook install` adds a local Git post-commit hook so the graph stays fresh automatically; it works with any remote, including GitHub, GitLab, and Azure DevOps. Use `hook azure` for a server-side Azure Pipelines snippet.
 - `reflect` proposes new or updated records after work is completed.

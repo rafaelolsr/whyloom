@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from . import __version__
 from .bootstrap import bootstrap_project, complete_onboarding, onboard_project, onboarding_status
 from .config import find_root, load_config
+from .exporters import export_graphml, export_svg
 from .hooks import azure_pipeline_snippet, install_hooks, uninstall_hooks
 from .indexer import index_project
 from .installer import AssistantPlatform, install_skills, uninstall_skills
@@ -25,6 +26,7 @@ from .operations import (
     stale_sources,
     validate_project,
 )
+from .report import build_report_data, render_report_markdown
 from .retrieval import compact_context_packet, context_packet, explain_target, find_path, traverse
 from .store import CorruptIndexError, GraphStore
 
@@ -292,6 +294,97 @@ def export_obsidian_command(
     if out_path.is_relative_to(resolved):
         result["vault"] = out_path.relative_to(resolved).as_posix()
     emit(result, as_json)
+
+
+@export_app.command("graphml")
+def export_graphml_command(
+    output: Path = typer.Option(Path(".whyloom/cache/graph.graphml"), "--output", "-o"),
+    root: Path | None = typer.Option(None, "--root"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Export the graph as GraphML for Gephi, yEd, or NetworkX."""
+    resolved, config = project(root, as_json)
+    with open_existing_store(resolved, config, as_json) as store:
+        document = export_graphml(store)
+    out_path = output if output.is_absolute() else resolved / output
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(document, encoding="utf-8")
+    emit({"graphml": out_path.relative_to(resolved).as_posix() if out_path.is_relative_to(resolved) else str(out_path)}, as_json)
+
+
+@export_app.command("svg")
+def export_svg_command(
+    output: Path = typer.Option(Path(".whyloom/cache/graph.svg"), "--output", "-o"),
+    max_nodes: int = typer.Option(400, "--max-nodes", help="Maximum nodes to draw."),
+    root: Path | None = typer.Option(None, "--root"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Export a static SVG visualization of the graph."""
+    resolved, config = project(root, as_json)
+    with open_existing_store(resolved, config, as_json) as store:
+        document = export_svg(store, max_nodes=max_nodes)
+    out_path = output if output.is_absolute() else resolved / output
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(document, encoding="utf-8")
+    emit({"svg": out_path.relative_to(resolved).as_posix() if out_path.is_relative_to(resolved) else str(out_path)}, as_json)
+
+
+@app.command("watch")
+def watch_command(
+    interval: float = typer.Option(2.0, "--interval", help="Seconds between change scans."),
+    root: Path | None = typer.Option(None, "--root"),
+) -> None:
+    """Re-index automatically as source files change (poll-based; Ctrl-C to stop)."""
+    import time
+
+    from .indexer import discover_code_paths
+
+    resolved, config = project(root, False)
+
+    def snapshot() -> dict[str, float]:
+        paths, _ = discover_code_paths(resolved, config)
+        records = (resolved / config["records_dir"]).rglob("*.md")
+        stamps: dict[str, float] = {}
+        for path in [*paths, *records]:
+            try:
+                stamps[str(path)] = path.stat().st_mtime
+            except OSError:
+                continue
+        return stamps
+
+    typer.echo(f"Watching {resolved} (interval {interval}s). Ctrl-C to stop.")
+    index_project(resolved, config)
+    typer.echo("Indexed. Waiting for changes…")
+    previous = snapshot()
+    try:
+        while True:
+            time.sleep(interval)
+            current = snapshot()
+            if current != previous:
+                result = index_project(resolved, config)
+                changed = len(result.get("changed", []))
+                typer.echo(f"Reindexed: {changed} source(s) changed.")
+                previous = current
+    except KeyboardInterrupt:
+        typer.echo("\nStopped watching.")
+
+
+@app.command("report")
+def report_command(
+    output: Path | None = typer.Option(None, "--output", "-o", help="Write GRAPH_REPORT.md here instead of stdout."),
+    root: Path | None = typer.Option(None, "--root"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Summarize the graph: most-connected entities and suggested starter questions."""
+    resolved, config = project(root, as_json)
+    with open_existing_store(resolved, config, as_json) as store:
+        data = build_report_data(store)
+    if output is not None:
+        out_path = output if output.is_absolute() else resolved / output
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(render_report_markdown(data), encoding="utf-8")
+        data["report"] = out_path.relative_to(resolved).as_posix() if out_path.is_relative_to(resolved) else str(out_path)
+    emit(data, as_json)
 
 
 @app.command("map")
