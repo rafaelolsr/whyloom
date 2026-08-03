@@ -40,11 +40,173 @@ def emit(payload: dict[str, Any], as_json: bool) -> None:
     if as_json:
         typer.echo(json.dumps(output, indent=2, default=str))
         return
-    if "task" in output:
-        typer.echo(f"Task: {output['task']}")
-    if "target" in output:
-        typer.echo(f"Target: {output['target']}")
-    typer.echo(json.dumps(output, indent=2, default=str))
+    typer.echo(render_human(payload))
+
+
+def render_human(payload: dict[str, Any]) -> str:
+    """Render a command result as concise, scannable text. Falls back to compact
+    JSON only for shapes without a dedicated renderer, so `--json` stays the way
+    to get the full machine-readable payload."""
+    lines = _human_lines(payload)
+    return "\n".join(lines) if lines is not None else json.dumps(payload, indent=2, default=str)
+
+
+def _human_lines(p: dict[str, Any]) -> list[str] | None:  # noqa: C901 - a flat dispatch on result shape
+    out: list[str] = []
+
+    # Error result.
+    if p.get("ok") is False and "error" in p:
+        err = p["error"]
+        return [f"✗ {err.get('code', 'ERROR')}: {err.get('message', '')}"]
+
+    # install / uninstall.
+    if p.get("operation") in {"install", "uninstall"}:
+        verb = "Installed" if p["operation"] == "install" else "Removed"
+        for r in p.get("results", []):
+            out.append(f"  {_mark(r['action'])} {r['skill']} → {r['destination']}")
+        for g in p.get("guidance", []):
+            if g.get("action") not in {"skipped", "absent", "not-managed"}:
+                out.append(f"  {_mark(g['action'])} guidance → {g.get('file', '')}")
+        return [f"{verb} Whyloom skills:", *out] if out else [f"{verb}: nothing to do."]
+
+    # doctor.
+    if "checks" in p and "ready" in p:
+        out.append("✓ Ready" if p["ready"] else "✗ Not ready")
+        for c in p["checks"]:
+            out.append(f"  {'✓' if c['ok'] else '✗'} {c['name']}: {c['detail']}")
+        return out
+
+    # onboard.
+    if "onboarded" in p:
+        if not p["onboarded"]:
+            return ["✗ Onboarding did not complete."]
+        ob = p.get("onboarding", {})
+        boot = p.get("bootstrap", {})
+        out.append(f"✓ Onboarded — request {ob.get('action', 'ready')} ({ob.get('status', '')}).")
+        if boot.get("evidence_count") is not None:
+            out.append(f"  collected {boot['evidence_count']} evidence item(s)")
+        if p.get("next_action"):
+            out.append(f"  next: {p['next_action']}")
+        return out
+
+    # index (may also carry an onboarding block — handle before status-only).
+    if "indexed" in p and "nodes_written" in p:
+        out.append(f"Indexed {len(p.get('changed', []))} changed source(s) in {p.get('elapsed_ms', 0)} ms.")
+        out.append(f"  nodes +{p['nodes_written']}  edges +{p['edges_written']}  records {p.get('records', 0)}")
+        if p.get("removed"):
+            out.append(f"  removed {len(p['removed'])} stale source(s)")
+        ob = p.get("onboarding", {})
+        if ob.get("status") and ob["status"] != "completed":
+            out.append(f"  onboarding: {ob['status']}")
+        return out
+
+    # onboarding status / completion (status-only payloads).
+    if "onboarding" in p and "onboarded" not in p:
+        ob = p["onboarding"]
+        return [f"Onboarding status: {ob.get('status', 'unknown')}"]
+
+    # context / compact context.
+    if "governing_records" in p and ("files" in p or "symbols" in p):
+        if "task" in p:
+            out.append(f"Task: {p['task']}")
+        gov = p["governing_records"]
+        out.append(f"Governing records ({len(gov)}):")
+        out += [f"  • {r.get('id', '?')} — {r.get('title') or r.get('label', '')}" for r in gov] or ["  (none accepted)"]
+        prop = p.get("proposed_records") or []
+        if prop:
+            out.append(f"Proposed (unreviewed) ({len(prop)}):")
+            out += [f"  • {r.get('id', '?')} — {r.get('title', '')}" for r in prop]
+        files = [f if isinstance(f, str) else f.get("path") for f in p.get("files", [])]
+        if files:
+            out.append("Files: " + ", ".join(f for f in files if f))
+        for w in p.get("warnings", []):
+            out.append(f"  ⚠ {w}")
+        return out
+
+    # explain (found or not — the not-found payload omits governing_records).
+    if "found" in p and "target" in p and "hops" not in p and "affected" not in p:
+        if not p["found"]:
+            warn = "; ".join(p.get("warnings", ["not found"]))
+            return [f"✗ {p['target']}: {warn}"]
+        out.append(f"Target: {p.get('target', '')}")
+        gov = p["governing_records"]
+        out.append(f"Governing records ({len(gov)}): " + (", ".join(r["id"] for r in gov) or "none"))
+        for gap in p.get("knowledge_gaps", []):
+            out.append(f"  ⚠ {gap}")
+        return out
+
+    # path.
+    if "hops" in p:
+        if not p["found"]:
+            return ["✗ No path: " + "; ".join(p.get("warnings", ["not found"]))]
+        out.append(f"Path {p.get('source', '')} → {p.get('target', '')} ({p.get('length', 0)} hop(s)):")
+        for h in p["hops"]:
+            frm, to = h["from"].split(":")[-1], h["to"].split(":")[-1]
+            prov = "" if h.get("provenance") == "EXTRACTED" else f" ({h['provenance'].lower()})"
+            out.append(f"  {frm} --{h['type']}{prov}--> {to}")
+        return out
+
+    # impact.
+    if "affected" in p and "counts" in p:
+        c = p["counts"]
+        out.append(f"Impact of {p.get('target', '')}: "
+                   f"{c.get('records', 0)} record(s), {c.get('symbols', 0)} symbol(s), {c.get('callers', 0)} caller(s)")
+        syms = [s["name"] for s in p["affected"].get("symbols", [])][:8]
+        if syms:
+            out.append("  symbols: " + ", ".join(syms))
+        callers = [x["label"] for x in p["affected"].get("downstream_callers", [])]
+        if callers:
+            out.append("  callers: " + ", ".join(callers))
+        return out
+
+    # propose.
+    if "created" in p and "created_count" in p:
+        if not p["created"]:
+            return [f"No new proposals. {p.get('next_action', '')}"]
+        out.append(f"Drafted {p['created_count']} proposed record(s):")
+        out += [f"  • {c}" for c in p["created"]]
+        out.append("Review, refine, and accept before treating as authoritative.")
+        return out
+
+    # learnings.
+    if "uncovered_count" in p:
+        out.append(f"Proposals pending: {p.get('proposal_count', 0)}  ·  Uncovered source files: {p['uncovered_count']}")
+        for f in p.get("uncovered", [])[:10]:
+            out.append(f"  • {f}")
+        if p.get("next_action"):
+            out.append(p["next_action"])
+        return out
+
+    # usage.
+    if "total_queries" in p:
+        if not p.get("total_queries"):
+            return ["No graph queries recorded yet."]
+        out.append(p.get("summary", f"{p['total_queries']} queries."))
+        for cmd, n in p.get("by_command", {}).items():
+            out.append(f"  {cmd}: {n}")
+        return out
+
+    # validate.
+    if "valid" in p and "errors" in p:
+        if p["valid"]:
+            return [f"✓ Valid ({p.get('records', 0)} records)"]
+        out.append(f"✗ Invalid ({len(p['errors'])} error(s)):")
+        out += [f"  • {e.get('code', '')}: {e.get('message', '')}" for e in p["errors"]]
+        return out
+
+    # single-artifact writers (map, export, report).
+    for key, label in (("map", "Map"), ("graphml", "GraphML"), ("svg", "SVG"), ("vault", "Obsidian vault"), ("report", "Report")):
+        if key in p:
+            extra = ""
+            if "notes_written" in p:
+                extra = f" ({p['notes_written']} notes)"
+            return [f"{label} written to {p[key]}{extra}"]
+
+    return None  # no dedicated renderer → caller falls back to JSON
+
+
+def _mark(action: str) -> str:
+    return {"installed": "+", "updated": "~", "created": "+", "appended": "+", "unchanged": "=", "removed": "-"}.get(action, "•")
 
 
 def fail(code: str, message: str, as_json: bool, exit_code: int = 2) -> NoReturn:
