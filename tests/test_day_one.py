@@ -72,3 +72,23 @@ def test_export_obsidian_builds_linked_vault(tmp_path):
     assert "[[" in all_text and "]]" in all_text
     # Proposed records are labeled as unreviewed in the vault.
     assert "Proposed" in all_text
+
+
+def test_decision_comment_extracts_and_proposes(tmp_path):
+    # A `# decision:` comment is the most natural whyloom rationale; it must
+    # become a Rationale node and be proposable (regression: DECISION tag was
+    # missing from RATIONALE_TAGS, so propose silently produced nothing).
+    root = tmp_path / "repo"
+    (root / "src").mkdir(parents=True)
+    (root / "src" / "auth.py").write_text(
+        "def rotate(user):\n    # decision: rotate on every use to shrink replay window\n    return user\n",
+        encoding="utf-8",
+    )
+    init_project(root)
+    index_project(root, DEFAULT_CONFIG)
+    with GraphStore(root / DEFAULT_CONFIG["database"], create=False) as store:
+        rationale = [r["label"] for r in store.connection.execute("SELECT label FROM nodes WHERE type = 'Rationale'")]
+    assert any(label.startswith("DECISION:") for label in rationale)
+
+    result = propose_from_rationale(root, DEFAULT_CONFIG)
+    assert result["created_count"] >= 1

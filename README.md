@@ -84,6 +84,11 @@ Day one you already get a queryable graph, an HTML map, an Obsidian vault, and
 results but clearly marked unreviewed. Nothing an inference produced is treated
 as authoritative until you accept it.
 
+`propose` drafts records from tagged comments (`WHY:`, `DECISION:`, `HACK:`).
+Rationale in non-Python files is only extracted when the matching tree-sitter
+grammar is installed — use the `[languages]` install above; without it, those
+files still index but their comments are skipped with a `LANG002` note.
+
 After this, your agent has the skill, an instruction-file pointer telling it to
 query before editing and capture after, and an index that stays current. Each
 step is explained below.

@@ -25,7 +25,7 @@ from .models import Diagnostic, GraphEdge, GraphNode
 # Tagged rationale comments become first-class, queryable Rationale nodes.
 # The comment is EXTRACTED (it literally exists) but its content is advisory:
 # it never outranks an accepted Decision or Constraint record.
-RATIONALE_TAGS = ("WHY", "HACK", "NOTE", "TODO", "FIXME", "XXX", "BUG", "WARNING", "OPTIMIZE")
+RATIONALE_TAGS = ("WHY", "DECISION", "HACK", "NOTE", "TODO", "FIXME", "XXX", "BUG", "WARNING", "OPTIMIZE")
 _TAG_BODY = re.compile(
     r"(?:#|//|/\*|\*|<!--|--)\s*(" + "|".join(RATIONALE_TAGS) + r")\b[:\-\s]*(.+?)\s*(?:\*/|-->)?\s*$",
     re.IGNORECASE,
