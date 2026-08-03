@@ -49,3 +49,17 @@ def test_unknown_shape_falls_back_to_json():
     text = render_human(payload)
     # Valid JSON, since there is no dedicated renderer.
     assert json.loads(text) == payload
+
+
+def test_report_renders_god_nodes():
+    payload = {
+        "totals": {"nodes": 100, "edges": 200, "accepted_records": 1},
+        "god_nodes": [{"label": "AdvisorState", "type": "Symbol", "degree": 460}],
+        "suggested_questions": ["Why does AdvisorState exist?"],
+        "node_types": {"Symbol": 50},
+    }
+    text = render_human(payload)
+    assert "Most-connected entities:" in text
+    assert "AdvisorState" in text and "460 connections" in text
+    assert "Suggested questions:" in text
+    assert "{" not in text

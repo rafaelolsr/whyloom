@@ -154,7 +154,12 @@ def compact_context_packet(packet: dict) -> dict:
             }
             for item in packet.get("proposed_records", [])
         ],
-        "files": sorted({item["path"] for item in packet["files"] if item.get("path")}),
+        # Include files reached directly and the files that contain matched
+        # symbols, so a symbol hit always surfaces its file.
+        "files": sorted(
+            {item["path"] for item in packet["files"] if item.get("path")}
+            | {item["path"] for item in packet["evidence"] if item["type"] == "Symbol" and item.get("path")}
+        ),
         "symbols": [
             {
                 "id": item["id"],
