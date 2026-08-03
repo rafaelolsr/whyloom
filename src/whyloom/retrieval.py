@@ -110,6 +110,21 @@ def context_packet(store: GraphStore, task: str, max_depth: int = 2, max_items: 
         )
     )
     seeds = candidates[: min(max_items, 5)]
+    # A governing record links to a File node (APPLIES_TO/IMPLEMENTS/CONSTRAINED_BY),
+    # but lexical search usually matches the Symbols *inside* a file, not the File
+    # node itself. Left alone, the record sits at depth 3 (Symbol→File→Record) —
+    # past max_depth — and sibling symbols exhaust the item budget first. Promote
+    # each seed symbol's containing File to a seed so its record is reached at
+    # depth 1. Deterministic: the File id is derived from the symbol's source path.
+    seed_ids = {seed["id"] for seed in seeds}
+    for seed in list(seeds):
+        source_path = seed.get("source_path") or (seed.get("path") if seed["type"] == "Symbol" else None)
+        if not source_path:
+            continue
+        file_node = store.node(f"file:{source_path}") or store.node(source_path)
+        if file_node and file_node["type"] == "File" and file_node["id"] not in seed_ids:
+            seeds.append(file_node)
+            seed_ids.add(file_node["id"])
     items = traverse(store, seeds, max_depth=max_depth, max_items=max_items)
     records = [item for item in items if item["type"] in GOVERNING_TYPES]
     governing = [item for item in records if item.get("data", {}).get("status") in ACCEPTED_STATUSES]
