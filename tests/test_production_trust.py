@@ -163,10 +163,10 @@ def _write_record(root, name, *, record_id, status, confidence=None):
     )
 
 
-def test_validate_flags_inferred_record_accepted_without_review(tmp_path):
-    # Trust gate: an agent-authored record (INFERRED id or machine confidence)
-    # marked accepted skipped the human-review gate. Pilot regression: bootstrap
-    # left ARC-INFERRED records at status: accepted.
+def test_validate_flags_confidence_bearing_record_accepted_without_review(tmp_path):
+    # Trust gate: a record still carrying a machine-confidence score reached an
+    # authoritative status without passing review. Pilot regression: bootstrap
+    # left ARC-INFERRED records at status: accepted with confidence intact.
     from whyloom.operations import validate_project
 
     root = _repo(tmp_path)
@@ -176,7 +176,7 @@ def test_validate_flags_inferred_record_accepted_without_review(tmp_path):
     assert any(e["code"] == "TRUST001" for e in result["errors"])
 
 
-def test_validate_allows_inferred_record_that_stays_proposed(tmp_path):
+def test_validate_allows_confidence_record_that_stays_proposed(tmp_path):
     from whyloom.operations import validate_project
 
     root = _repo(tmp_path)
@@ -185,11 +185,39 @@ def test_validate_allows_inferred_record_that_stays_proposed(tmp_path):
     assert not any(e["code"] == "TRUST001" for e in result["errors"])
 
 
-def test_validate_allows_human_accepted_record(tmp_path):
-    # A human-authored record (plain id, no confidence) may be accepted.
+def test_validate_allows_inferred_id_accepted_without_confidence(tmp_path):
+    # The INFERRED id records who DRAFTED the record (an agent); it must not gate
+    # acceptance. A human-accepted record has its confidence stripped and is then
+    # authoritative even though its id still says INFERRED.
     from whyloom.operations import validate_project
 
     root = _repo(tmp_path)
-    _write_record(root, "0001-shell.md", record_id="ARC-0001", status="accepted")
+    _write_record(root, "0001-shell.md", record_id="ARC-INFERRED-001", status="accepted")
     result = validate_project(root, DEFAULT_CONFIG)
     assert not any(e["code"] == "TRUST001" for e in result["errors"])
+
+
+def test_accept_strips_confidence_so_validate_passes(tmp_path):
+    # Accepting an inferred proposal is the human gate: it must clear the machine
+    # confidence so the record no longer trips TRUST001. Regression: accept flipped
+    # status but left confidence, making the accepted record permanently invalid.
+    from whyloom.operations import accept_records, validate_project
+
+    root = _repo(tmp_path)
+    (root / ".whyloom" / "proposals").mkdir(parents=True, exist_ok=True)
+    (root / ".whyloom" / "proposals" / "shell.md").write_text(
+        "---\nid: ARC-INFERRED-001\ntype: architecture\ntitle: Shell\nstatus: proposed\n"
+        "date: 2026-07-31\ntargets:\n- src/auth.py\nconstraints: []\nsupersedes: []\nconfidence: high\n---\n\n"
+        "## Observation\nx\n## Inference\nx\n## Consequences\nx\n",
+        encoding="utf-8",
+    )
+    index_project(root, DEFAULT_CONFIG)
+    result = accept_records(root, DEFAULT_CONFIG, ids=["ARC-INFERRED-001"])
+    assert result["accepted_count"] == 1
+
+    text = (root / ".whyloom" / "proposals" / "shell.md").read_text(encoding="utf-8")
+    assert "status: accepted" in text
+    assert "confidence:" not in text
+
+    validation = validate_project(root, DEFAULT_CONFIG)
+    assert not any(e["code"] == "TRUST001" for e in validation["errors"])
