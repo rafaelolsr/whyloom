@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import time
 from fnmatch import fnmatch
 from pathlib import Path
@@ -14,7 +15,7 @@ from .languages import Extraction, default_registry
 from .locking import index_lock
 from .migrations import INDEX_FORMAT_VERSION
 from .models import Diagnostic, GraphEdge, GraphNode, ProjectRecord
-from .path_policy import has_ignored_directory
+from .path_policy import is_ignored_directory
 from .records import discover_records
 from .store import GraphStore
 
@@ -103,18 +104,42 @@ def _record_graph(record: ProjectRecord, root: Path) -> tuple[list[GraphNode], l
 
 
 def _matches(path: str, patterns: list[str]) -> bool:
-    return any(fnmatch(path, pattern) or Path(path).match(pattern) for pattern in patterns)
+    return any(_matches_one(path, pattern) for pattern in patterns)
+
+
+def _matches_one(path: str, pattern: str) -> bool:
+    if fnmatch(path, pattern) or Path(path).match(pattern):
+        return True
+    # `**/` means "any depth including zero", but fnmatch/PurePath.match require
+    # at least one directory. Also try the pattern with a leading `**/` stripped
+    # so root-level files match include globs like `**/*.py`.
+    if pattern.startswith("**/"):
+        return fnmatch(path, pattern[3:]) or Path(path).match(pattern[3:])
+    return False
 
 
 def discover_code_paths(root: Path, config: dict) -> tuple[list[Path], list[Diagnostic]]:
+    """Discover indexable source files with a single pruning walk.
+
+    Ignored directories (virtualenvs, node_modules, .worktrees, caches, ...) are
+    skipped *before* descending into them, so a repo with large vendored trees is
+    never traversed. Files are matched against the configured include patterns."""
     discovered: set[Path] = set()
     diagnostics: list[Diagnostic] = []
-    for pattern in config["include"]:
-        for path in root.glob(pattern):
-            if not path.is_file() or path.is_symlink():
+    includes = config["include"]
+    excludes = config["exclude"]
+
+    for current_dir, dirnames, filenames in os.walk(root, followlinks=False):
+        # Prune ignored subtrees in place so os.walk does not descend into them.
+        dirnames[:] = [d for d in dirnames if not is_ignored_directory(d)]
+        for filename in filenames:
+            path = Path(current_dir) / filename
+            if path.is_symlink() or not path.is_file():
                 continue
             rel = path.relative_to(root).as_posix()
-            if has_ignored_directory(rel) or _matches(rel, config["exclude"]):
+            if _matches(rel, excludes):
+                continue
+            if not any(_matches(rel, [pattern]) for pattern in includes):
                 continue
             if path.suffix.casefold() not in SUPPORTED_SUFFIXES:
                 diagnostics.append(
