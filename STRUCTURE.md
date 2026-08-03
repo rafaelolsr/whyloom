@@ -244,6 +244,10 @@ Renders the indexed graph as a single self-contained HTML file with an inline, d
 
 Installs or removes client-side Git hooks (`post-commit`, `post-merge`, `post-checkout`) that run `whyloom index` so the graph tracks the working tree. Hooks are local and host-agnostic, so they work against any remote including Azure DevOps; a pre-existing non-Whyloom hook is never overwritten, and uninstall removes only Whyloom-owned hooks. `hook azure` prints an Azure Pipelines step for server-side refresh on push.
 
+### `whyloom accept <id>`
+
+Flips proposed records to accepted, changing only the `status` line and preserving the rest of the file. Accepts specific ids or `--all`. Optional: editing the record's status during a pull-request review is the primary, zero-setup human-review gate.
+
 ### `whyloom reflect`
 
 Uses an explicit task summary and Git diff to create proposal files. It never changes a record to accepted automatically.

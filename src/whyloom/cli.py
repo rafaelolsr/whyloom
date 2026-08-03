@@ -18,6 +18,7 @@ from .installer import AssistantPlatform, install_skills, uninstall_skills
 from .mapview import build_map_payload, render_map_html
 from .obsidian import export_obsidian
 from .operations import (
+    accept_records,
     doctor_project,
     init_project,
     learnings_report,
@@ -158,6 +159,15 @@ def _human_lines(p: dict[str, Any]) -> list[str] | None:  # noqa: C901 - a flat 
         if callers:
             out.append("  callers: " + ", ".join(callers))
         return out
+
+    # accept.
+    if "accepted" in p and "accepted_count" in p:
+        if p["accepted"]:
+            out.append(f"Accepted {p['accepted_count']} record(s): " + ", ".join(p["accepted"]))
+        for s in p.get("skipped", []):
+            out.append(f"  • skipped {s['id']}: {s['reason']}")
+        out.append(p.get("next_action", ""))
+        return [line for line in out if line]
 
     # propose.
     if "created" in p and "created_count" in p:
@@ -600,6 +610,20 @@ def impact_command(
         payload = add_staleness_warning(payload, resolved, config, store)
     record_query(resolved, config, "impact", target, payload.get("counts", {}))
     emit(payload, as_json)
+
+
+@app.command("accept")
+def accept_command(
+    ids: list[str] = typer.Argument(None, help="Record ids to accept (e.g. DEC-0007). Omit with --all."),
+    all_proposed: bool = typer.Option(False, "--all", help="Accept every proposed record in one action."),
+    root: Path | None = typer.Option(None, "--root"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Flip proposed records to accepted (optional; editing status in a PR also works)."""
+    resolved, config = project(root, as_json)
+    if not ids and not all_proposed:
+        fail("ACCEPT001", "give record ids or use --all", as_json)
+    emit(accept_records(resolved, config, ids=ids, all_proposed=all_proposed), as_json)
 
 
 @app.command("propose")

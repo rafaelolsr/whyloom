@@ -10,7 +10,7 @@ import yaml
 
 from .codegraph import source_hash as compute_source_hash
 from .config import DEFAULT_CONFIG, resolve_repository_path
-from .indexer import discover_code_paths
+from .indexer import discover_code_paths, index_project
 from .migrations import INDEX_FORMAT_VERSION
 from .models import Diagnostic
 from .records import discover_records
@@ -179,6 +179,72 @@ def propose_from_rationale(root: Path, config: dict, *, limit: int = 50) -> dict
         "created_count": len(created),
         "skipped": skipped,
         "next_action": next_action,
+    }
+
+
+_STATUS_LINE = re.compile(r"^(status:\s*)(\S+)", re.MULTILINE)
+_ID_LINE = re.compile(r"^id:\s*(\S+)", re.MULTILINE)
+
+
+def accept_records(root: Path, config: dict, *, ids: list[str] | None = None, all_proposed: bool = False) -> dict:
+    """Flip proposed records to accepted — the sanctioned way a human confirms
+    review from the CLI. Only ``status`` changes; the record file is otherwise
+    preserved. Bulk by default (``all_proposed``) so accepting many records is one
+    reviewed action, never a per-record chore.
+
+    This is optional: editing the record's status in a pull request is the
+    primary, zero-setup human-review gate. Records are files; the PR review is
+    where acceptance naturally happens."""
+    root = root.resolve()
+    records_dir = root / config["records_dir"]
+    wanted = {i.upper() for i in (ids or [])}
+    accepted: list[str] = []
+    skipped: list[dict] = []
+
+    for path in sorted(records_dir.rglob("*.md")):
+        # Skip the non-record scaffolding (overview, glossary, templates, cache).
+        if any(part in {"templates", "cache"} for part in path.relative_to(records_dir).parts):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        id_match = _ID_LINE.search(text)
+        status_match = _STATUS_LINE.search(text)
+        if not id_match or not status_match:
+            continue
+        record_id = id_match.group(1)
+        current_status = status_match.group(2)
+
+        selected = all_proposed or record_id.upper() in wanted
+        if not selected:
+            continue
+        # This id was matched to a file — never report it "not found" later.
+        wanted.discard(record_id.upper())
+        if current_status == "accepted":
+            skipped.append({"id": record_id, "reason": "already accepted"})
+            continue
+        if current_status != "proposed":
+            skipped.append({"id": record_id, "reason": f"status is '{current_status}', not proposed"})
+            continue
+        updated = _STATUS_LINE.sub(r"\1accepted", text, count=1)
+        path.write_text(updated, encoding="utf-8")
+        accepted.append(record_id)
+
+    for missing in sorted(wanted):
+        skipped.append({"id": missing, "reason": "not found"})
+
+    reindex = index_project(root, config) if accepted else None
+    return {
+        "accepted": accepted,
+        "accepted_count": len(accepted),
+        "skipped": skipped,
+        "reindexed": bool(reindex),
+        "next_action": (
+            f"Accepted {len(accepted)} record(s). Commit the change so the acceptance is reviewed in Git."
+            if accepted
+            else "No records accepted."
+        ),
     }
 
 

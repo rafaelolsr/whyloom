@@ -206,6 +206,7 @@ whyloom doctor
 - `propose` drafts reviewable, proposed decision records from in-code `WHY`/`DECISION`/`HACK` comments so a freshly onboarded repo has queryable rationale on day one — never accepted automatically.
 - `hook install` adds a local Git post-commit hook so the graph stays fresh automatically; it works with any remote, including GitHub, GitLab, and Azure DevOps. Use `hook azure` for a server-side Azure Pipelines snippet.
 - `reflect` proposes new or updated records after work is completed.
+- `accept` flips proposed records to accepted from the CLI (bulk with `--all`) — optional; reviewing and editing the record file in a PR is the primary gate.
 - `learnings` reports pending proposals and rationale gaps (source files with no governing record) so the capture loop stays reliable; add `--changed` to scope it to recent work.
 - `usage` reports how many queries the graph answered (per command) — concrete proof the agent is using the graph instead of grep.
 - `validate` detects broken links, stale records, and contradictory active constraints.
@@ -249,6 +250,8 @@ Whyloom separates implementation truth from project intent:
 - accepted project records are the source of truth for intent and rationale;
 - the generated index is a cache, never an authority;
 - agent-generated knowledge enters as a proposal and requires normal human review before becoming accepted truth.
+
+Records are Markdown files, so **the human-review gate is your normal pull-request review**: an agent proposes a record, you review the file in the PR, and flipping `status: proposed` to `accepted` is a one-line diff you approve — no separate step. `context` flags any accepted record that looks agent-authored (an inferred id or a machine confidence score) so unreviewed self-certification is visible. For convenience, `whyloom accept <id>` (or `--all`) flips records from the CLI in one action, but it is optional — editing the file in a review works the same.
 
 Whyloom stores concise rationale and evidence, not private model chain-of-thought.
 
