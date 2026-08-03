@@ -162,7 +162,7 @@ def _human_lines(p: dict[str, Any]) -> list[str] | None:  # noqa: C901 - a flat 
     # propose.
     if "created" in p and "created_count" in p:
         if not p["created"]:
-            return [f"No new proposals. {p.get('next_action', '')}"]
+            return [p.get("next_action", "No new proposals.")]
         out.append(f"Drafted {p['created_count']} proposed record(s):")
         out += [f"  • {c}" for c in p["created"]]
         out.append("Review, refine, and accept before treating as authoritative.")

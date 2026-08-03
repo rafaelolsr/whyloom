@@ -165,15 +165,20 @@ def propose_from_rationale(root: Path, config: dict, *, limit: int = 50) -> dict
         (proposals_dir / filename).write_text(body, encoding="utf-8")
         created.append((proposals_dir / filename).relative_to(root).as_posix())
 
+    if created:
+        next_action = "Review the proposed rationale records and accept, refine, or delete them."
+    elif skipped:
+        next_action = (
+            f"No new proposals: {skipped} proposable comment(s) were already proposed. "
+            "Review the existing proposals under .whyloom/proposals/."
+        )
+    else:
+        next_action = "No WHY/DECISION/HACK rationale comments were found to propose."
     return {
         "created": created,
         "created_count": len(created),
         "skipped": skipped,
-        "next_action": (
-            "Review the proposed rationale records and accept, refine, or delete them."
-            if created
-            else "No new proposable rationale comments found."
-        ),
+        "next_action": next_action,
     }
 
 
