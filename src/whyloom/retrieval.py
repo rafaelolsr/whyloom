@@ -6,7 +6,7 @@ from itertools import count
 from .store import GraphStore
 
 # Record types that can govern implementation intent.
-GOVERNING_TYPES = frozenset({"Decision", "Constraint"})
+GOVERNING_TYPES = frozenset({"Decision", "Constraint", "Architecture", "Incident"})
 # Statuses that make a governing record authoritative (vs proposed).
 ACCEPTED_STATUSES = frozenset({"accepted", "implemented"})
 
@@ -84,6 +84,15 @@ def traverse(store: GraphStore, seeds: list[dict], max_depth: int = 2, max_items
     return sorted(seen.values(), key=lambda item: (-item["score"], item["type"], item["label"]))[:max_items]
 
 
+def _looks_inferred(record: dict) -> bool:
+    """Heuristic: a record was likely written by an agent/inference rather than a
+    human. Human-authored records carry no machine confidence score and use plain
+    ids; inferred ones carry a confidence and often an INFERRED id."""
+    if "INFERRED" in record.get("id", "").upper():
+        return True
+    return record.get("data", {}).get("confidence") is not None
+
+
 def context_packet(store: GraphStore, task: str, max_depth: int = 2, max_items: int = 20) -> dict:
     candidates = [item for item in store.search(task, max(50, max_items * 3)) if item["type"] in SEED_PRIORITY]
     def source_penalty(item: dict) -> float:
@@ -119,6 +128,15 @@ def context_packet(store: GraphStore, task: str, max_depth: int = 2, max_items: 
         )
     elif not governing:
         warnings.append("No accepted decision or constraint was found for this task.")
+    # Trust check: an accepted record that looks agent-authored (inference
+    # signals: an INFERRED id or a machine confidence score) may not have passed
+    # human review. Surface it — do not block — so the reader confirms provenance.
+    unverified = [r["id"] for r in governing if _looks_inferred(r)]
+    if unverified:
+        warnings.append(
+            f"{len(unverified)} accepted record(s) appear agent-authored ({', '.join(unverified[:3])}) — "
+            "confirm a human reviewed them before relying on them."
+        )
     return {
         "task": task,
         "governing_records": governing,
