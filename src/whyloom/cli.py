@@ -169,6 +169,17 @@ def _human_lines(p: dict[str, Any]) -> list[str] | None:  # noqa: C901 - a flat 
         out.append(p.get("next_action", ""))
         return [line for line in out if line]
 
+    # reflect.
+    if "proposal" in p and "changed_paths" in p:
+        out.append(f"Drafted proposal ({p.get('status', 'proposed')}): {p['proposal']}")
+        changed = p.get("changed_paths", [])
+        if changed:
+            out.append("  changed: " + ", ".join(changed[:6]) + ("…" if len(changed) > 6 else ""))
+        out.append("  Fill in the Decision/Rationale sections, then accept (or review in a PR).")
+        for w in p.get("warnings", []):
+            out.append(f"  ⚠ {w}")
+        return out
+
     # propose.
     if "created" in p and "created_count" in p:
         if not p["created"]:
@@ -685,14 +696,23 @@ def doctor_command(
 
 @app.command("reflect")
 def reflect_command(
-    task_summary: str = typer.Option(..., "--task-summary", help="Concise summary of completed work."),
+    summary: str = typer.Argument(None, help="Concise summary of what changed and why."),
+    task_summary: str = typer.Option(None, "--task-summary", help="Alias for the summary argument."),
     diff_file: Path | None = typer.Option(None, "--diff-file", exists=True, dir_okay=False),
     root: Path | None = typer.Option(None, "--root"),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
+    """Draft a proposed record from a task summary and the current diff."""
+    text = summary or task_summary
+    if not text:
+        fail(
+            "REFLECT001",
+            'reflect needs a summary of what changed. Try: whyloom reflect "add session revocation on password change"',
+            as_json,
+        )
     resolved, config = project(root, as_json)
     diff_text = diff_file.read_text(encoding="utf-8") if diff_file else None
-    emit(reflect_project(resolved, task_summary, diff_text, config), as_json)
+    emit(reflect_project(resolved, text, diff_text, config), as_json)
 
 
 if __name__ == "__main__":

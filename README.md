@@ -186,7 +186,7 @@ whyloom context "change refresh-token rotation"
 whyloom impact decisions/0007-token-storage.md
 whyloom path TokenService SessionStore
 whyloom map --output graph.html
-whyloom reflect --task-summary "describe the durable project learning"
+whyloom reflect "describe the durable project learning"
 whyloom validate
 whyloom doctor
 ```
