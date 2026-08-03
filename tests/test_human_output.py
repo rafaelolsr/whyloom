@@ -63,3 +63,34 @@ def test_report_renders_god_nodes():
     assert "AdvisorState" in text and "460 connections" in text
     assert "Suggested questions:" in text
     assert "{" not in text
+
+
+def test_reflect_command_accepts_positional_and_option(tmp_path):
+    # 'whyloom reflect "did X"' must work; --task-summary stays as an alias;
+    # bare 'reflect' gives a helpful error, not a raw Typer stack (pilot friction).
+    from typer.testing import CliRunner
+
+    from whyloom.cli import app
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "a.py").write_text("def f():\n    return 1\n", encoding="utf-8")
+    runner = CliRunner()
+    runner.invoke(app, ["init", str(tmp_path)])
+    runner.invoke(app, ["index", "--root", str(tmp_path)])
+
+    positional = runner.invoke(app, ["reflect", "added a thing", "--root", str(tmp_path), "--json"])
+    assert positional.exit_code == 0 and '"status": "proposed"' in positional.stdout
+
+    option = runner.invoke(app, ["reflect", "--task-summary", "alias works", "--root", str(tmp_path), "--json"])
+    assert option.exit_code == 0
+
+    bare = runner.invoke(app, ["reflect", "--root", str(tmp_path)])
+    assert bare.exit_code != 0
+    assert "REFLECT001" in bare.stdout
+
+
+def test_reflect_renders_human():
+    payload = {"proposal": ".whyloom/proposals/x.md", "status": "proposed", "changed_paths": ["src/a.py"]}
+    text = render_human(payload)
+    assert "Drafted proposal" in text and "x.md" in text
+    assert "{" not in text

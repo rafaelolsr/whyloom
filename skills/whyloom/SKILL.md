@@ -57,7 +57,7 @@ If it reports uncovered source files that you changed, those are rationale gaps
 you should close before finishing. Then run:
 
 ```bash
-whyloom reflect --task-summary "<what changed and why>" --json
+whyloom reflect "<what changed and why>" --json
 ```
 
 The command returns an `agent_brief` (the task summary, changed paths, and the
