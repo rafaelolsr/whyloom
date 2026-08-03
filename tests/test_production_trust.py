@@ -150,3 +150,46 @@ def test_learnings_excludes_covered_files(tmp_path):
     report = learnings_report(root, DEFAULT_CONFIG)
     # The covered file must not appear as a gap.
     assert "src/auth.py" not in report["uncovered"]
+
+
+def _write_record(root, name, *, record_id, status, confidence=None):
+    (root / ".whyloom" / "architecture").mkdir(parents=True, exist_ok=True)
+    conf = f"confidence: {confidence}\n" if confidence else ""
+    (root / ".whyloom" / "architecture" / name).write_text(
+        f"---\nid: {record_id}\ntype: architecture\ntitle: Shell\nstatus: {status}\n"
+        f"date: 2026-07-31\ntargets:\n- src/auth.py\nconstraints: []\nsupersedes: []\n{conf}---\n\n"
+        "## Observation\nx\n## Inference\nx\n## Consequences\nx\n",
+        encoding="utf-8",
+    )
+
+
+def test_validate_flags_inferred_record_accepted_without_review(tmp_path):
+    # Trust gate: an agent-authored record (INFERRED id or machine confidence)
+    # marked accepted skipped the human-review gate. Pilot regression: bootstrap
+    # left ARC-INFERRED records at status: accepted.
+    from whyloom.operations import validate_project
+
+    root = _repo(tmp_path)
+    _write_record(root, "0001-shell.md", record_id="ARC-INFERRED-001", status="accepted", confidence="high")
+    result = validate_project(root, DEFAULT_CONFIG)
+    assert not result["valid"]
+    assert any(e["code"] == "TRUST001" for e in result["errors"])
+
+
+def test_validate_allows_inferred_record_that_stays_proposed(tmp_path):
+    from whyloom.operations import validate_project
+
+    root = _repo(tmp_path)
+    _write_record(root, "0001-shell.md", record_id="ARC-INFERRED-001", status="proposed", confidence="high")
+    result = validate_project(root, DEFAULT_CONFIG)
+    assert not any(e["code"] == "TRUST001" for e in result["errors"])
+
+
+def test_validate_allows_human_accepted_record(tmp_path):
+    # A human-authored record (plain id, no confidence) may be accepted.
+    from whyloom.operations import validate_project
+
+    root = _repo(tmp_path)
+    _write_record(root, "0001-shell.md", record_id="ARC-0001", status="accepted")
+    result = validate_project(root, DEFAULT_CONFIG)
+    assert not any(e["code"] == "TRUST001" for e in result["errors"])
