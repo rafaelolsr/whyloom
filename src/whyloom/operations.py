@@ -438,6 +438,13 @@ def validate_project(root: Path, config: dict) -> dict:
                 diagnostics.append(Diagnostic(code="LINK002", severity="error", message=f"record reference does not exist: {reference}", path=record.path.as_posix()))
         if record.id in record.supersedes:
             diagnostics.append(Diagnostic(code="LIFE001", severity="error", message="record cannot supersede itself", path=record.path.as_posix()))
+        # Trust gate: a record that looks agent-authored (INFERRED id or a machine
+        # confidence score) must stay `proposed` until a human accepts it. An
+        # inferred record already marked accepted/implemented skipped the review
+        # gate — the one thing whyloom exists to prevent.
+        looks_inferred = "INFERRED" in record.id.upper() or record.confidence is not None
+        if looks_inferred and record.status.value in {"accepted", "implemented"}:
+            diagnostics.append(Diagnostic(code="TRUST001", severity="error", message=f"inferred record is '{record.status.value}' without human review; it must stay 'proposed' until accepted", path=record.path.as_posix()))
 
     supersession_graph = {record.id: record.supersedes for record in records}
 
