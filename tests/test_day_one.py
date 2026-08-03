@@ -92,3 +92,21 @@ def test_decision_comment_extracts_and_proposes(tmp_path):
 
     result = propose_from_rationale(root, DEFAULT_CONFIG)
     assert result["created_count"] >= 1
+
+
+def test_compact_context_surfaces_symbol_files(tmp_path):
+    # A symbol hit must surface its containing file even if the File node was
+    # not directly reached in traversal (pilot: files list came back empty).
+    from whyloom.retrieval import compact_context_packet, context_packet
+
+    root = tmp_path / "repo"
+    (root / "src").mkdir(parents=True)
+    (root / "src" / "router.py").write_text(
+        "class WorkflowRouter:\n    def dispatch(self, req):\n        return req\n", encoding="utf-8"
+    )
+    init_project(root)
+    index_project(root, DEFAULT_CONFIG)
+    with GraphStore(root / DEFAULT_CONFIG["database"], create=False) as store:
+        compact = compact_context_packet(context_packet(store, "workflow router dispatch"))
+    assert any("router.py" in f for f in compact["files"])
+    assert any(s["name"].startswith("WorkflowRouter") for s in compact["symbols"])

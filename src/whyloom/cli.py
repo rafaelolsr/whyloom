@@ -194,12 +194,24 @@ def _human_lines(p: dict[str, Any]) -> list[str] | None:  # noqa: C901 - a flat 
         out += [f"  • {e.get('code', '')}: {e.get('message', '')}" for e in p["errors"]]
         return out
 
-    # single-artifact writers (map, export, report).
-    for key, label in (("map", "Map"), ("graphml", "GraphML"), ("svg", "SVG"), ("vault", "Obsidian vault"), ("report", "Report")):
+    # report (god nodes + suggested questions).
+    if "god_nodes" in p and "suggested_questions" in p:
+        if p.get("report"):
+            out.append(f"Report written to {p['report']}")
+        t = p.get("totals", {})
+        out.append(f"Graph: {t.get('nodes', 0)} nodes, {t.get('edges', 0)} edges, "
+                   f"{t.get('accepted_records', 0)} accepted record(s).")
+        out.append("Most-connected entities:")
+        out += [f"  • {n['label']} ({n['type']}) — {n['degree']} connections" for n in p["god_nodes"][:8]]
+        if p["suggested_questions"]:
+            out.append("Suggested questions:")
+            out += [f"  {i}. {q}" for i, q in enumerate(p["suggested_questions"][:5], 1)]
+        return out
+
+    # single-artifact writers (map, export).
+    for key, label in (("map", "Map"), ("graphml", "GraphML"), ("svg", "SVG"), ("vault", "Obsidian vault")):
         if key in p:
-            extra = ""
-            if "notes_written" in p:
-                extra = f" ({p['notes_written']} notes)"
+            extra = f" ({p['notes_written']} notes)" if "notes_written" in p else ""
             return [f"{label} written to {p[key]}{extra}"]
 
     return None  # no dedicated renderer → caller falls back to JSON
