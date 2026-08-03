@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -86,7 +87,11 @@ def extract_python(path: Path, root: Path, content: bytes | None = None) -> Pyth
     edges: list[GraphEdge] = []
     diagnostics: list[Diagnostic] = []
     try:
-        tree = ast.parse(content.decode("utf-8"), filename=rel)
+        # Suppress SyntaxWarning (e.g. invalid escape sequences in the indexed
+        # file) — it is the target file's noise, not ours, and must not leak.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", SyntaxWarning)
+            tree = ast.parse(content.decode("utf-8"), filename=rel)
     except (SyntaxError, UnicodeDecodeError) as exc:
         diagnostics.append(Diagnostic(code="PY001", severity="warning", message=str(exc), path=rel))
         return PythonExtraction(rel, digest, module, nodes, edges, diagnostics)
