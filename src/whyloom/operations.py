@@ -184,6 +184,9 @@ def propose_from_rationale(root: Path, config: dict, *, limit: int = 50) -> dict
 
 _STATUS_LINE = re.compile(r"^(status:\s*)(\S+)", re.MULTILINE)
 _ID_LINE = re.compile(r"^id:\s*(\S+)", re.MULTILINE)
+# A machine-confidence line marks a record as still-unreviewed draft. Human
+# acceptance supersedes the machine's self-assessment, so acceptance removes it.
+_CONFIDENCE_LINE = re.compile(r"^confidence:.*\n", re.MULTILINE)
 
 
 def accept_records(root: Path, config: dict, *, ids: list[str] | None = None, all_proposed: bool = False) -> dict:
@@ -228,6 +231,10 @@ def accept_records(root: Path, config: dict, *, ids: list[str] | None = None, al
             skipped.append({"id": record_id, "reason": f"status is '{current_status}', not proposed"})
             continue
         updated = _STATUS_LINE.sub(r"\1accepted", text, count=1)
+        # Human acceptance is the review gate: drop the machine-confidence line so
+        # the accepted record reads as human-owned and no longer trips the
+        # inferred-without-review guard (TRUST001).
+        updated = _CONFIDENCE_LINE.sub("", updated, count=1)
         path.write_text(updated, encoding="utf-8")
         accepted.append(record_id)
 
@@ -438,13 +445,14 @@ def validate_project(root: Path, config: dict) -> dict:
                 diagnostics.append(Diagnostic(code="LINK002", severity="error", message=f"record reference does not exist: {reference}", path=record.path.as_posix()))
         if record.id in record.supersedes:
             diagnostics.append(Diagnostic(code="LIFE001", severity="error", message="record cannot supersede itself", path=record.path.as_posix()))
-        # Trust gate: a record that looks agent-authored (INFERRED id or a machine
-        # confidence score) must stay `proposed` until a human accepts it. An
-        # inferred record already marked accepted/implemented skipped the review
-        # gate — the one thing whyloom exists to prevent.
-        looks_inferred = "INFERRED" in record.id.upper() or record.confidence is not None
-        if looks_inferred and record.status.value in {"accepted", "implemented"}:
-            diagnostics.append(Diagnostic(code="TRUST001", severity="error", message=f"inferred record is '{record.status.value}' without human review; it must stay 'proposed' until accepted", path=record.path.as_posix()))
+        # Trust gate: a record still carrying a machine-confidence score has not
+        # passed human review — accepting it strips that score (see accept_records).
+        # So a confidence-bearing record marked accepted/implemented reached an
+        # authoritative status without the gate, the one thing whyloom prevents.
+        # The id (e.g. ARC-INFERRED-001) records who *drafted* it, not whether a
+        # human reviewed it, so it must not gate acceptance on its own.
+        if record.confidence is not None and record.status.value in {"accepted", "implemented"}:
+            diagnostics.append(Diagnostic(code="TRUST001", severity="error", message=f"record is '{record.status.value}' but still carries a machine-confidence score; accept it through review (which clears confidence) rather than editing status directly", path=record.path.as_posix()))
 
     supersession_graph = {record.id: record.supersedes for record in records}
 
