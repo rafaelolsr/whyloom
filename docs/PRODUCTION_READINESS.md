@@ -1,6 +1,6 @@
 # Production-readiness contract
 
-Whyloom `0.6.0` is intended for real codebase pilots as a local CLI.
+Whyloom `0.7.0` is intended for real codebase pilots as a local CLI.
 
 ## Guarantees
 
@@ -54,9 +54,9 @@ Whyloom `0.6.0` is intended for real codebase pilots as a local CLI.
 ## Explicit limits
 
 - Python has the most complete extractor (import-alias-aware call, inheritance,
-  and reference resolution). TypeScript, JavaScript, Go, Rust, Java, and C# are
-  supported through optional tree-sitter grammars with name-based cross-file
-  resolution only; import aliases are not yet tracked, so their CALLS/INHERITS
+  and reference resolution). TypeScript and JavaScript resolve ES/relative
+  imports, so a call to an imported name links to that file as an EXTRACTED edge;
+  Go, Rust, Java, and C# use name-based cross-file resolution whose CALLS/INHERITS
   edges are INFERRED and lose confidence when a name is ambiguous. Cross-language
   edges are out of scope. JSON and YAML are indexed as configuration structure.
 - Bootstrap discovers documentation, tests, configuration, dependencies,

@@ -65,7 +65,10 @@ Task-specific context for humans and agents
 The minimal setup to get Whyloom working in a project — run these in order:
 
 ```bash
-uv tool install "whyloom[languages]"   # CLI + tree-sitter grammars (or plain `whyloom` for Python-only)
+# Install the latest from source (recommended — always current):
+uv tool install "git+https://github.com/rafaelolsr/whyloom.git@main#egg=whyloom[languages]"
+# Public PyPI release (for environments that allow it):
+# uv tool install "whyloom[languages]"
 cd /your/project
 whyloom install --project              # register the skill + add the agent-instruction pointer
 whyloom onboard --root .               # initialize records and build the first index
@@ -87,11 +90,17 @@ step is explained below.
 
 ## Install
 
-Install the isolated CLI from PyPI:
+Install the isolated CLI from source (recommended — always the current release):
+
+```bash
+uv tool install "git+https://github.com/rafaelolsr/whyloom.git@main"
+whyloom install
+```
+
+Where public PyPI is permitted, the published release also works:
 
 ```bash
 uv tool install whyloom
-whyloom install
 ```
 
 `whyloom install` registers both the ongoing `whyloom` skill and the one-time
@@ -150,21 +159,17 @@ whyloom uninstall --platform copilot
 
 Python works out of the box. To index the other languages, add the matching
 tree-sitter grammar extra (they stay optional so the base install remains tiny
-and offline):
+and offline). From source:
 
 ```bash
-uv tool install "whyloom[languages]"                 # all supported grammars
-uv tool install "whyloom[typescript,go]"             # or pick specific ones
+uv tool install "git+https://github.com/rafaelolsr/whyloom.git@main#egg=whyloom[languages]"      # all grammars
+uv tool install "git+https://github.com/rafaelolsr/whyloom.git@main#egg=whyloom[typescript,go]"  # or pick specific ones
 ```
+
+Or, where public PyPI is permitted: `uv tool install "whyloom[languages]"`.
 
 Without a grammar installed, files in that language are still recorded, with a
 `LANG002` note that symbol extraction was skipped.
-
-To test the latest unreleased development version instead:
-
-```bash
-uv tool install git+https://github.com/rafaelolsr/whyloom.git
-```
 
 ## Core workflow
 

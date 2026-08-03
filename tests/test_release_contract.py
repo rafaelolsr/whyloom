@@ -17,7 +17,7 @@ def test_release_workflow_uses_pypi_trusted_publishing():
 def test_package_metadata_points_to_public_repository():
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     assert project["name"] == "whyloom"
-    assert project["version"] == "0.6.0"
+    assert project["version"] == "0.7.0"
     assert project["urls"]["Repository"] == "https://github.com/rafaelolsr/whyloom.git"
 
 
