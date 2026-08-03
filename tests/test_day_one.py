@@ -110,3 +110,31 @@ def test_compact_context_surfaces_symbol_files(tmp_path):
         compact = compact_context_packet(context_packet(store, "workflow router dispatch"))
     assert any("router.py" in f for f in compact["files"])
     assert any(s["name"].startswith("WorkflowRouter") for s in compact["symbols"])
+
+
+def test_propose_message_distinguishes_none_from_already_proposed(tmp_path):
+    # "no proposals" must explain WHY: none exist vs all already proposed
+    # (pilot confusion: message read like the repo had no rationale).
+    root = tmp_path / "repo"
+    (root / "src").mkdir(parents=True)
+    (root / "src" / "a.py").write_text("def f():\n    # WHY: keep it simple\n    return 1\n", encoding="utf-8")
+    init_project(root)
+    index_project(root, DEFAULT_CONFIG)
+
+    first = propose_from_rationale(root, DEFAULT_CONFIG)
+    assert first["created_count"] == 1
+
+    second = propose_from_rationale(root, DEFAULT_CONFIG)
+    assert second["created_count"] == 0
+    assert second["skipped"] >= 1
+    assert "already proposed" in second["next_action"]
+
+    # A repo with no proposable tags gets the other message.
+    bare = tmp_path / "bare"
+    (bare / "src").mkdir(parents=True)
+    (bare / "src" / "b.py").write_text("def g():\n    return 1\n", encoding="utf-8")
+    init_project(bare)
+    index_project(bare, DEFAULT_CONFIG)
+    result = propose_from_rationale(bare, DEFAULT_CONFIG)
+    assert result["created_count"] == 0
+    assert "no" in result["next_action"].casefold() and "found" in result["next_action"].casefold()
