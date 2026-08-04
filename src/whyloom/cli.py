@@ -129,12 +129,7 @@ def _human_lines(p: dict[str, Any]) -> list[str] | None:  # noqa: C901 - a flat 
         if not p["found"]:
             warn = "; ".join(p.get("warnings", ["not found"]))
             return [f"✗ {p['target']}: {warn}"]
-        out.append(f"Target: {p.get('target', '')}")
-        gov = p["governing_records"]
-        out.append(f"Governing records ({len(gov)}): " + (", ".join(r["id"] for r in gov) or "none"))
-        for gap in p.get("knowledge_gaps", []):
-            out.append(f"  ⚠ {gap}")
-        return out
+        return _explain_lines(p)
 
     # path.
     if "hops" in p:
@@ -236,6 +231,73 @@ def _human_lines(p: dict[str, Any]) -> list[str] | None:  # noqa: C901 - a flat 
             return [f"{label} written to {p[key]}{extra}"]
 
     return None  # no dedicated renderer → caller falls back to JSON
+
+
+def _wrap(text: str, width: int = 88, indent: str = "  ") -> list[str]:
+    """Wrap record prose to a readable width. Markdown list items (`- ...`) keep
+    their own line and a hanging indent so bullets stay legible; paragraphs reflow."""
+    import textwrap
+
+    text = text.strip()
+    if not text:
+        return []
+    # Split into blocks on list markers so bullets don't collapse into one line.
+    blocks: list[str] = []
+    for raw in text.splitlines():
+        stripped = raw.strip()
+        if stripped.startswith(("- ", "* ")):
+            blocks.append(stripped)
+        elif stripped and blocks and not blocks[-1].startswith(("- ", "* ")):
+            blocks[-1] = f"{blocks[-1]} {stripped}"
+        elif stripped:
+            blocks.append(stripped)
+    lines: list[str] = []
+    for block in blocks:
+        is_item = block.startswith(("- ", "* "))
+        lines += textwrap.wrap(
+            " ".join(block.split()),
+            width=width,
+            initial_indent=indent,
+            subsequent_indent=indent + ("  " if is_item else ""),
+        )
+    return lines
+
+
+def _explain_lines(p: dict[str, Any]) -> list[str]:
+    """Render `explain` as a consistent, scannable brief: what the target is, why
+    it exists, what was decided, the trade-offs, what it governs, and the proof —
+    each section printed only when the records carry that content."""
+    out: list[str] = [f"▸ {p.get('target', '')}"]
+    gov = p.get("governing_records", [])
+    if not gov:
+        out.append("  No governing record — rationale for this target is unrecorded.")
+        for gap in p.get("knowledge_gaps", []):
+            out.append(f"  ⚠ {gap}")
+        return out
+
+    for i, r in enumerate(gov):
+        if i:
+            out.append("")
+        badge = "⚠ agent-authored" if r.get("provenance") == "agent-authored" else "human-authored"
+        title = r.get("title") or r.get("label", "")
+        out.append(f"  {r.get('id', '?')} · {r.get('status', '?')} · {badge}")
+        if title:
+            out.append(f"  {title}")
+        for heading, key in (("Why it exists", "why"), ("What was decided", "decision"), ("Trade-offs", "consequences")):
+            body = _wrap(r.get(key, ""))
+            if body:
+                out.append(f"    {heading}:")
+                out += [f"  {line}" for line in body]
+        targets = r.get("targets") or []
+        if targets:
+            out.append("    Applies to: " + ", ".join(targets[:6]) + ("…" if len(targets) > 6 else ""))
+        for q in r.get("open_questions") or []:
+            out.append(f"    ? {q}")
+        out.append(f"    Proof: {r.get('id', '?')}")
+
+    for w in p.get("warnings", []):
+        out.append(f"  ⚠ {w}")
+    return out
 
 
 def _mark(action: str) -> str:
@@ -419,7 +481,7 @@ def explain_command(
 ) -> None:
     resolved, config = project(root, as_json)
     with open_existing_store(resolved, config, as_json) as store:
-        payload = explain_target(store, target, config["max_depth"], config["max_items"])
+        payload = explain_target(store, target, config["max_depth"], config["max_items"], root=resolved, config=config)
         payload = add_staleness_warning(payload, resolved, config, store)
     record_query(resolved, config, "explain", target, {"found": payload.get("found", False)})
     emit(payload, as_json)

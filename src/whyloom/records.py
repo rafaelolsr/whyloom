@@ -13,6 +13,34 @@ def sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def record_sections(body: str) -> dict[str, str]:
+    """Split a record body into ``{heading_casefold: text}`` for its ``## Heading``
+    blocks, so renderers can pull Context/Decision/Consequences without re-parsing.
+    Keys are casefolded; ``<!-- ... -->`` placeholder-only bodies collapse to ''."""
+    sections: dict[str, str] = {}
+    heading: str | None = None
+    buffer: list[str] = []
+
+    def flush() -> None:
+        if heading is None:
+            return
+        text = "\n".join(buffer).strip()
+        # Drop agent/HTML-comment scaffolding so an unfilled section reads as empty.
+        if text.startswith("<!--") and text.endswith("-->"):
+            text = ""
+        sections[heading.casefold()] = text
+
+    for line in body.splitlines():
+        if line.startswith("## "):
+            flush()
+            heading = line[3:].strip()
+            buffer = []
+        elif heading is not None:
+            buffer.append(line)
+    flush()
+    return sections
+
+
 def parse_record(path: Path, root: Path) -> ProjectRecord:
     text = path.read_text(encoding="utf-8")
     if not text.startswith("---\n"):

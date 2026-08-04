@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import heapq
 from itertools import count
+from pathlib import Path
 
 from .store import GraphStore
 
@@ -371,16 +372,53 @@ def find_path(store: GraphStore, source: str, target: str, max_hops: int = 8) ->
     }
 
 
-def explain_target(store: GraphStore, target: str, max_depth: int = 2, max_items: int = 20) -> dict:
+def _enrich_governing(records: list[dict], root: Path | None, config: dict | None) -> None:
+    """Attach human-readable detail (title, Context/Decision/Consequences prose,
+    open questions, targets) to each governing record in place by reading its
+    source file. Index nodes hold only frontmatter, not the body, so a structured
+    explanation must consult the record on disk. Best-effort: a missing or
+    unparseable file simply leaves the record with its index-level fields."""
+    if root is None or config is None:
+        return
+    from .records import discover_records, record_sections
+
+    parsed, _ = discover_records(root, config["records_dir"])
+    by_id = {record.id: record for record in parsed}
+    for item in records:
+        record = by_id.get(item["id"])
+        if record is None:
+            continue
+        sections = record_sections(record.body)
+        item["title"] = record.title
+        item["status"] = record.status.value
+        item["targets"] = record.targets
+        item["provenance"] = "agent-authored" if _looks_inferred(item) else "human-authored"
+        # Decision records use ## Decision; architecture records use ## Inference.
+        item["why"] = sections.get("context") or sections.get("observation") or ""
+        item["decision"] = sections.get("decision") or sections.get("decision inferred from evidence") or sections.get("inference") or ""
+        item["consequences"] = sections.get("consequences") or ""
+        item["open_questions"] = record.open_questions
+
+
+def explain_target(
+    store: GraphStore,
+    target: str,
+    max_depth: int = 2,
+    max_items: int = 20,
+    root: Path | None = None,
+    config: dict | None = None,
+) -> dict:
     node = _resolve_node(store, target)
     if node is None:
         return {"target": target, "found": False, "evidence": [], "warnings": ["Target not found in the graph."]}
     items = traverse(store, [node], max_depth=max_depth, max_items=max_items)
+    governing = [item for item in items if item["type"] in GOVERNING_TYPES]
+    _enrich_governing(governing, root, config)
     return {
         "target": target,
         "found": True,
         "node": node,
-        "governing_records": [item for item in items if item["type"] in GOVERNING_TYPES],
+        "governing_records": governing,
         "related_code": [item for item in items if item["type"] in {"File", "Symbol"} and item["id"] != node["id"]],
         "evidence": items,
         "knowledge_gaps": [] if any(item["type"] in GOVERNING_TYPES for item in items) else ["No governing record is linked to this target."],
