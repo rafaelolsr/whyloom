@@ -48,6 +48,35 @@ def test_governing_record_surfaces_when_seed_is_a_symbol(tmp_path):
     assert any(r["id"] == "ARC-0001" for r in packet["governing_records"])
 
 
+def test_role_record_sections_enrich_explain(tmp_path):
+    # An architecture-role record uses Role/Responsibilities/Boundaries headings
+    # (not Decision). explain must map those onto its display slots so onboarding's
+    # role-coverage proposals render, not just decision records.
+    from whyloom.cli import render_human
+    from whyloom.config import DEFAULT_CONFIG as CFG
+
+    root = tmp_path / "repo"
+    shutil.copytree(FIXTURE, root)
+    (root / ".whyloom" / "architecture").mkdir(parents=True, exist_ok=True)
+    (root / ".whyloom" / "architecture" / "0002-role.md").write_text(
+        "---\nid: ARC-0002\ntype: architecture\ntitle: Auth is the token boundary\nstatus: accepted\n"
+        "date: 2026-08-04\ntargets:\n- src/sample/auth.py\nconstraints: []\nsupersedes: []\n---\n\n"
+        "## Role\nThe token-fingerprinting boundary.\n"
+        "## Responsibilities\nOwns hashing of tokens.\n"
+        "## Boundaries\nCallers reach it only through TokenService.\n",
+        encoding="utf-8",
+    )
+    index_project(root, DEFAULT_CONFIG)
+    with GraphStore(root / DEFAULT_CONFIG["database"]) as store:
+        result = explain_target(store, "src/sample/auth.py", root=root, config=CFG)
+    rec = next(r for r in result["governing_records"] if r["id"] == "ARC-0002")
+    assert rec["why"] == "The token-fingerprinting boundary."
+    assert rec["decision"] == "Owns hashing of tokens."
+    assert rec["consequences"] == "Callers reach it only through TokenService."
+    text = render_human(result)
+    assert "Why it exists:" in text and "What it does:" in text
+
+
 def test_looks_inferred_heuristic():
     assert _looks_inferred({"id": "ARC-INFERRED-001", "data": {}})
     assert _looks_inferred({"id": "DEC-0001", "data": {"confidence": "high"}})

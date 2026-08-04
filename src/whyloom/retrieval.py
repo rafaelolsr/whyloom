@@ -393,10 +393,19 @@ def _enrich_governing(records: list[dict], root: Path | None, config: dict | Non
         item["status"] = record.status.value
         item["targets"] = record.targets
         item["provenance"] = "agent-authored" if _looks_inferred(item) else "human-authored"
-        # Decision records use ## Decision; architecture records use ## Inference.
-        item["why"] = sections.get("context") or sections.get("observation") or ""
-        item["decision"] = sections.get("decision") or sections.get("decision inferred from evidence") or sections.get("inference") or ""
-        item["consequences"] = sections.get("consequences") or ""
+        # Records come in two shapes: decision (Context/Decision/Consequences,
+        # or architecture Observation/Inference) and role (Role/Responsibilities/
+        # Boundaries). Map both onto the same three display slots so explain renders
+        # either kind uniformly.
+        item["why"] = sections.get("context") or sections.get("observation") or sections.get("role") or ""
+        item["decision"] = (
+            sections.get("decision")
+            or sections.get("decision inferred from evidence")
+            or sections.get("inference")
+            or sections.get("responsibilities")
+            or ""
+        )
+        item["consequences"] = sections.get("consequences") or sections.get("boundaries") or ""
         item["open_questions"] = record.open_questions
 
 
