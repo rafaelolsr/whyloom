@@ -28,13 +28,18 @@ Do not use the ongoing reflection loop to fabricate an initial project history.
 4. Run `whyloom index --json` when the index may be absent or stale.
 5. Run `whyloom context "<current task>" --compact --json`.
 6. Read the returned governing records, symbols, relationships, communities, and source paths.
-7. Treat `EXTRACTED` relationships as structural evidence and `INFERRED` or
+7. Also read `proposed_records`: on a freshly onboarded codebase most rationale is
+   still `proposed` (unreviewed). Use it as day-one evidence — it is a real, cited
+   starting point — but treat it as unverified: confirm it against the cited files
+   before relying on it, and never present it as accepted project intent.
+8. Treat `EXTRACTED` relationships as structural evidence and `INFERRED` or
    `AMBIGUOUS` relationships as prompts for source verification.
-8. Verify high-impact claims in the cited files before editing.
-9. Surface warnings and unresolved questions instead of manufacturing intent.
+9. Verify high-impact claims in the cited files before editing.
+10. Surface warnings and unresolved questions instead of manufacturing intent.
 
-If no governing record is returned, say that rationale is unrecorded. Do not
-treat missing knowledge as permission to invent a project decision.
+If neither a governing record nor a proposed record is returned, say that rationale
+is unrecorded. Do not treat missing knowledge as permission to invent a project
+decision. A proposed record is evidence to verify, not authority to cite.
 
 ## Explain or assess impact
 

@@ -21,10 +21,15 @@ Recover project reasoning as reviewable proposals. Treat code as evidence of wha
    persistence, deployment, and other runtime boundaries.
 7. Inspect the cited source files, tests, configuration, documentation, and Git commits.
 8. Compare discoveries with existing records under `.whyloom/`. Do not duplicate or overwrite established reasoning.
-9. Create only the smallest useful set of canonical artifacts:
+9. Create canonical artifacts with broad, evidence-backed coverage:
    - `.whyloom/overview.md` for a repository orientation directly supported by evidence.
    - `.whyloom/glossary.md` for stable vocabulary found across multiple sources.
-   - `.whyloom/proposals/inferred-*.md` for inferred architecture, decisions, or constraints.
+   - `.whyloom/proposals/inferred-*.md` for inferred architecture, decisions, or
+     constraints. Aim to cover **every significant structural community and runtime
+     boundary** with at least one proposal — an existing codebase should come out of
+     onboarding with usable rationale across its subsystems, not a token few records.
+     Each proposal still lands as `status: proposed` for human review; breadth is
+     safe precisely because nothing is authoritative until accepted.
 10. Run `whyloom validate --root <root> --json`.
 11. Run `whyloom onboard --complete --summary "<concise result>" --root <root> --json` to re-index and close the pending request.
 12. Report created proposals, uncovered communities, evidence gaps, open questions, and the human decisions required next.
@@ -50,4 +55,6 @@ Separate observation from inference in the body. State what the evidence demonst
 - Never treat Git commit subjects or comments as unquestionable truth.
 - Never copy secrets, credentials, large source excerpts, or private data into records.
 - Never create a proposal when the evidence is too weak; record an open question instead.
-- Prefer a few defensible records over comprehensive speculative documentation.
+- Favor broad coverage of evidence-backed subsystems, but never pad: a proposal
+  with weak evidence is worse than an acknowledged gap. Breadth comes from covering
+  more *real* boundaries, not from lowering the evidence bar on any one of them.
