@@ -29,6 +29,60 @@ def test_error_renders_concisely():
     assert render_human(payload) == "✗ IDX001: no index"
 
 
+def test_explain_renders_structured_brief():
+    payload = {
+        "found": True,
+        "target": "src/workflows/router.py",
+        "governing_records": [
+            {
+                "id": "ARC-0001",
+                "type": "Architecture",
+                "status": "accepted",
+                "provenance": "human-authored",
+                "title": "Deterministic workflow shell",
+                "why": "The app does not delegate orchestration to one agent.",
+                "decision": "A deterministic shell around bounded agents.",
+                "consequences": "- New paths are modules.\n- Cross-path code lives in SharedServices.",
+                "targets": ["src/workflows/router.py"],
+                "open_questions": ["Is General QA a permanent path?"],
+            }
+        ],
+        "knowledge_gaps": [],
+        "warnings": [],
+    }
+    text = render_human(payload)
+    assert "▸ src/workflows/router.py" in text
+    assert "ARC-0001 · accepted · human-authored" in text
+    assert "Why it exists:" in text and "What was decided:" in text and "Trade-offs:" in text
+    assert "Applies to: src/workflows/router.py" in text
+    assert "? Is General QA a permanent path?" in text
+    assert "{" not in text  # not raw JSON
+
+
+def test_explain_renders_gap_when_no_record():
+    payload = {"found": True, "target": "src/x.py", "governing_records": [], "knowledge_gaps": ["No governing record is linked to this target."], "warnings": []}
+    text = render_human(payload)
+    assert "▸ src/x.py" in text
+    assert "unrecorded" in text
+
+
+def test_record_sections_parses_headings():
+    from whyloom.records import record_sections
+
+    body = "## Context\n\nWhy it exists.\n\n## Decision\n\nWhat we chose.\n\n## Consequences\n\n- a\n- b\n"
+    sections = record_sections(body)
+    assert sections["context"] == "Why it exists."
+    assert sections["decision"] == "What we chose."
+    assert "- a" in sections["consequences"]
+
+
+def test_record_sections_collapses_placeholder_only_body():
+    from whyloom.records import record_sections
+
+    sections = record_sections("## Decision\n\n<!-- Restate the decision, then accept. -->\n")
+    assert sections["decision"] == ""
+
+
 def test_context_lists_records_and_proposed():
     payload = {
         "task": "auth",
