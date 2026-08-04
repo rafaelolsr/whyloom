@@ -283,7 +283,9 @@ def _explain_lines(p: dict[str, Any]) -> list[str]:
         out.append(f"  {r.get('id', '?')} · {r.get('status', '?')} · {badge}")
         if title:
             out.append(f"  {title}")
-        for heading, key in (("Why it exists", "why"), ("What was decided", "decision"), ("Trade-offs", "consequences")):
+        # Neutral headings that read correctly for both a decision record (why a
+        # choice was made) and a role record (what a subsystem is and owns).
+        for heading, key in (("Why it exists", "why"), ("What it does", "decision"), ("Trade-offs & limits", "consequences")):
             body = _wrap(r.get(key, ""))
             if body:
                 out.append(f"    {heading}:")

@@ -53,7 +53,7 @@ def test_explain_renders_structured_brief():
     text = render_human(payload)
     assert "▸ src/workflows/router.py" in text
     assert "ARC-0001 · accepted · human-authored" in text
-    assert "Why it exists:" in text and "What was decided:" in text and "Trade-offs:" in text
+    assert "Why it exists:" in text and "What it does:" in text and "Trade-offs & limits:" in text
     assert "Applies to: src/workflows/router.py" in text
     assert "? Is General QA a permanent path?" in text
     assert "{" not in text  # not raw JSON
