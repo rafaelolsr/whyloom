@@ -60,6 +60,32 @@ def test_file_target_is_unchanged(tmp_path):
     assert targets == ["file:catalog/orchestrator/pipeline.py"]
 
 
+def test_search_ranks_path_term_coverage_over_frequency(tmp_path):
+    # Guardrail for term-coverage ranking: the file whose PATH covers more distinct
+    # query terms must rank first. (The frequency pathology it guards against only
+    # manifests at corpus scale, where term frequency swamps IDF; this small-repo
+    # test locks in correct ordering and documents the intent rather than
+    # reproducing the scale failure.)
+    from whyloom.operations import init_project
+
+    root = tmp_path / "repo"
+    (root / "catalog" / "orchestrator").mkdir(parents=True)
+    (root / "catalog" / "orchestrator" / "pipeline.py").write_text(
+        "class Pipeline:\n    def run(self):\n        return 1\n", encoding="utf-8"
+    )
+    (root / "noise.py").write_text(
+        "# ingestion ingestion ingestion ingestion ingestion ingestion\n"
+        "def ingestion():\n    return 'ingestion ingestion ingestion'\n",
+        encoding="utf-8",
+    )
+    init_project(root)
+    index_project(root, DEFAULT_CONFIG)
+    with GraphStore(root / DEFAULT_CONFIG["database"]) as store:
+        results = store.search("catalog ingestion pipeline", 5)
+    top_path = results[0].get("path") or results[0].get("source_path") or ""
+    assert "catalog/orchestrator/pipeline.py" in top_path
+
+
 def test_find_path_between_file_and_record(tmp_path):
     root = tmp_path / "repo"
     shutil.copytree(FIXTURE, root)
