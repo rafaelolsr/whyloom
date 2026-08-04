@@ -9,6 +9,57 @@ from whyloom.store import GraphStore
 FIXTURE = Path(__file__).parent / "fixtures" / "sample_repo"
 
 
+def _repo_with_dir_target(tmp_path, target):
+    from whyloom.operations import init_project
+
+    root = tmp_path / "repo"
+    (root / "catalog" / "orchestrator").mkdir(parents=True)
+    (root / "catalog" / "orchestrator" / "pipeline.py").write_text(
+        "class Pipeline:\n    def run(self):\n        return 1\n", encoding="utf-8"
+    )
+    (root / "catalog" / "query.py").write_text("def read():\n    return 2\n", encoding="utf-8")
+    init_project(root)
+    (root / ".whyloom" / "architecture").mkdir(parents=True, exist_ok=True)
+    (root / ".whyloom" / "architecture" / "0001-cat.md").write_text(
+        "---\nid: ARC-0001\ntype: architecture\ntitle: Catalog boundary\nstatus: accepted\n"
+        f"date: 2026-08-04\ntargets:\n- {target}\nconstraints: []\nsupersedes: []\n---\n\n"
+        "## Observation\nCatalog is a bounded context.\n## Inference\nOne package.\n## Consequences\nx\n",
+        encoding="utf-8",
+    )
+    index_project(root, DEFAULT_CONFIG)
+    return root
+
+
+def test_directory_target_links_record_to_contained_files(tmp_path):
+    # Pilot bug: a record targeting a directory (e.g. `catalog`) linked to a
+    # phantom `file:catalog` node no file matched, orphaning the record so
+    # retrieval never surfaced it — agents fell back to grep. The target must
+    # expand to APPLIES_TO edges for every file under the directory.
+    root = _repo_with_dir_target(tmp_path, "catalog")
+    with GraphStore(root / DEFAULT_CONFIG["database"]) as store:
+        targets = {
+            row["target"]
+            for row in store.connection.execute("SELECT target FROM edges WHERE source = 'ARC-0001' AND type = 'APPLIES_TO'")
+        }
+        packet = compact_context_packet(context_packet(store, "catalog pipeline run"))
+    assert "file:catalog/orchestrator/pipeline.py" in targets
+    assert "file:catalog/query.py" in targets
+    assert "file:catalog" not in targets  # no phantom directory node
+    # The record now surfaces as governing for a query about the contained code.
+    assert any(r["id"] == "ARC-0001" for r in packet["governing_records"])
+
+
+def test_file_target_is_unchanged(tmp_path):
+    # A direct file target must still produce exactly one edge to that file.
+    root = _repo_with_dir_target(tmp_path, "catalog/orchestrator/pipeline.py")
+    with GraphStore(root / DEFAULT_CONFIG["database"]) as store:
+        targets = [
+            row["target"]
+            for row in store.connection.execute("SELECT target FROM edges WHERE source = 'ARC-0001' AND type = 'APPLIES_TO'")
+        ]
+    assert targets == ["file:catalog/orchestrator/pipeline.py"]
+
+
 def test_find_path_between_file_and_record(tmp_path):
     root = tmp_path / "repo"
     shutil.copytree(FIXTURE, root)

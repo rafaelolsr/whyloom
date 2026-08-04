@@ -26,7 +26,28 @@ _CONFIG_SUFFIXES = {".json", ".yaml", ".yml"}
 SUPPORTED_SUFFIXES = default_registry().code_suffixes | _CONFIG_SUFFIXES
 
 
-def _record_graph(record: ProjectRecord, root: Path) -> tuple[list[GraphNode], list[GraphEdge], list[tuple[str, str, str, str]]]:
+def _resolve_target_files(target: str, root: Path, known_files: frozenset[str]) -> list[str]:
+    """Resolve a record target to the file paths it governs. A file target maps to
+    itself; a directory target expands to every indexed file beneath it. Without
+    this expansion a directory target (e.g. `catalog`) links to a phantom
+    `file:catalog` node that no file matches, orphaning the record from the code it
+    governs — so retrieval never surfaces it and agents fall back to grep."""
+    normalized = target.strip("/")
+    if normalized in known_files:
+        return [normalized]
+    if (root / normalized).is_dir():
+        prefix = f"{normalized}/"
+        contained = sorted(path for path in known_files if path.startswith(prefix))
+        if contained:
+            return contained
+    # Unknown target (missing path, or a file not indexed): keep the literal edge
+    # so validation still flags it, rather than silently dropping the link.
+    return [normalized]
+
+
+def _record_graph(
+    record: ProjectRecord, root: Path, known_files: frozenset[str] = frozenset()
+) -> tuple[list[GraphNode], list[GraphEdge], list[tuple[str, str, str, str]]]:
     node = GraphNode(
         id=record.id,
         type=record.type.value.title(),
@@ -46,7 +67,11 @@ def _record_graph(record: ProjectRecord, root: Path) -> tuple[list[GraphNode], l
         },
     )
     edges: list[GraphEdge] = []
+    reverse_type = "CONSTRAINED_BY" if record.type.value == "constraint" else "IMPLEMENTS"
+    resolved_targets: list[str] = []
     for target in record.targets:
+        resolved_targets.extend(_resolve_target_files(target, root, known_files))
+    for target in dict.fromkeys(resolved_targets):  # de-dupe, preserve order
         target_id = f"file:{target}"
         edges.append(
             GraphEdge(
@@ -60,7 +85,6 @@ def _record_graph(record: ProjectRecord, root: Path) -> tuple[list[GraphNode], l
                 source_hash=record.source_hash,
             )
         )
-        reverse_type = "CONSTRAINED_BY" if record.type.value == "constraint" else "IMPLEMENTS"
         edges.append(
             GraphEdge(
                 source=target_id,
@@ -219,9 +243,10 @@ def index_project(root: Path, config: dict) -> dict:
             all_nodes.extend(nodes)
             all_edges.extend(edges)
 
+    known_files = frozenset(path.relative_to(root).as_posix() for path in discovered)
     record_graphs: dict[str, tuple[str, list[GraphNode], list[GraphEdge], list[tuple[str, str, str, str]]]] = {}
     for record in records:
-        nodes, edges, documents = _record_graph(record, root)
+        nodes, edges, documents = _record_graph(record, root, known_files)
         rel = record.path.as_posix()
         record_graphs[rel] = (record.source_hash, nodes, edges, documents)
         all_nodes.extend(nodes)
