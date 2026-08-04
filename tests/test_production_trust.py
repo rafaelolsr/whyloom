@@ -118,6 +118,30 @@ def test_doctor_reports_stale_freshness(tmp_path):
     assert not freshness["ok"]
 
 
+def test_stale_index_version_self_heals_on_reindex(tmp_path):
+    # A logic change bumps INDEX_FORMAT_VERSION so existing indexes are detected as
+    # stale and rebuilt on the next `index` — no manual cache wipe. Simulate the
+    # bump by ageing a source's recorded version, then reindex.
+    from whyloom.migrations import INDEX_FORMAT_VERSION
+
+    root = _repo(tmp_path)
+    index_project(root, DEFAULT_CONFIG)
+    db = root / DEFAULT_CONFIG["database"]
+    with GraphStore(db, create=False) as store:
+        assert store.outdated_source_count(INDEX_FORMAT_VERSION) == 0
+        store.connection.execute("UPDATE sources SET index_version = index_version - 1")
+        store.connection.commit()
+        assert store.outdated_source_count(INDEX_FORMAT_VERSION) > 0
+
+    # Reindex with unchanged files: the version mismatch alone must force a rebuild.
+    index_project(root, DEFAULT_CONFIG)
+    with GraphStore(db, create=False) as store:
+        assert store.outdated_source_count(INDEX_FORMAT_VERSION) == 0
+    result = doctor_project(root, DEFAULT_CONFIG)
+    index_check = next(c for c in result["checks"] if c["name"] == "index")
+    assert index_check["ok"]
+
+
 def test_learnings_reports_uncovered_source(tmp_path):
     from whyloom.operations import learnings_report
 

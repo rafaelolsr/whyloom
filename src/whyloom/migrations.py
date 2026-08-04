@@ -3,9 +3,13 @@ from __future__ import annotations
 import sqlite3
 
 SCHEMA_VERSION = 3
-# Bumped to 4: extraction now emits Rationale nodes and ANNOTATES edges, so
-# existing per-source indexes are stale and must be rebuilt to include them.
-INDEX_FORMAT_VERSION = 4
+# The derived-graph format version. Bump this whenever node/edge extraction logic
+# changes so existing per-source indexes are detected as stale and rebuilt on the
+# next `index` — without it, a logic fix silently leaves old edges in place.
+# 4: Rationale nodes and ANNOTATES edges.
+# 5: directory record targets expand to APPLIES_TO edges per contained file
+#    (previously a directory linked to a phantom `file:<dir>` node).
+INDEX_FORMAT_VERSION = 5
 
 MIGRATIONS = {
     1: """
