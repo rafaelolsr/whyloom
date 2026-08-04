@@ -37,6 +37,27 @@ def _query_terms(query: str) -> list[str]:
     return list(dict.fromkeys(term for term in terms if len(term) > 1 and term not in QUERY_STOPWORDS))
 
 
+def _rerank_by_term_coverage(results: list[dict], terms: list[str]) -> list[dict]:
+    """Re-rank FTS candidates so a node matching MORE distinct query terms in its
+    identity (path + label) outranks one that merely repeats a single term. Raw
+    bm25 rewards term frequency, which lets a file that says "ingestion" ten times
+    beat `catalog/orchestrator/pipeline.py` on the query "catalog ingestion
+    pipeline". Coverage of distinct terms in the name/path is the stronger signal
+    for code retrieval; bm25 stays the tie-breaker within the same coverage."""
+    if not terms:
+        return results
+    term_set = list(dict.fromkeys(terms))
+
+    def coverage(item: dict) -> int:
+        identity = f"{item.get('path') or ''} {item.get('label') or ''}"
+        identity = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", identity).replace("_", "-").replace("/", " ").casefold()
+        tokens = set(re.findall(r"[a-z0-9]+", identity))
+        return sum(1 for term in term_set if term in tokens)
+
+    # Sort by (most terms covered, then best bm25). Stable, fully deterministic.
+    return sorted(results, key=lambda item: (-coverage(item), item.get("lexical_rank", 0.0)))
+
+
 class GraphStore:
     def __init__(self, path: Path, *, create: bool = True):
         self.path = path
@@ -162,9 +183,17 @@ class GraphStore:
             return []
         fts_query = " OR ".join(f'"{term}"' for term in terms)
         try:
+            # Weight name/path matches far above body matches: a file whose path or
+            # symbol whose name contains the query terms is a better hit than a file
+            # that merely repeats one term in its text. bm25 column order is
+            # (node_id, label, body, path); a smaller weight means a stronger signal
+            # (bm25 returns more-negative = better), so label/path get low weights
+            # and body a high one. Over-fetch, then re-rank by term coverage.
             rows = self.connection.execute(
-                "SELECT n.*, bm25(documents) AS lexical_rank FROM documents JOIN nodes n ON n.id = documents.node_id WHERE documents MATCH ? ORDER BY lexical_rank LIMIT ?",
-                (fts_query, limit),
+                "SELECT n.*, bm25(documents, 0.0, 0.4, 5.0, 0.3) AS lexical_rank "
+                "FROM documents JOIN nodes n ON n.id = documents.node_id "
+                "WHERE documents MATCH ? ORDER BY lexical_rank LIMIT ?",
+                (fts_query, max(limit * 4, 40)),
             ).fetchall()
         except sqlite3.OperationalError:
             pattern = f"%{query}%"
@@ -172,7 +201,8 @@ class GraphStore:
                 "SELECT *, 0.0 AS lexical_rank FROM nodes WHERE label LIKE ? OR data LIKE ? LIMIT ?",
                 (pattern, pattern, limit),
             ).fetchall()
-        return [self._node_dict(row) | {"lexical_rank": row["lexical_rank"]} for row in rows]
+        results = [self._node_dict(row) | {"lexical_rank": row["lexical_rank"]} for row in rows]
+        return _rerank_by_term_coverage(results, terms)[:limit]
 
     def neighbors(self, node_id: str) -> list[dict]:
         rows = self.connection.execute(
