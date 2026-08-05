@@ -134,6 +134,46 @@ def test_impact_reads_as_plain_language():
     assert "No governing decision recorded" in text
 
 
+def test_doctor_ends_with_plain_verdict_and_next_step():
+    payload = {"ready": True, "checks": [{"name": "validation", "ok": True, "detail": "0 records"}]}
+    text = render_human(payload)
+    assert "Ready — Whyloom can answer" in text
+    # The bare "0 records" is reframed as the normal day-zero state, not a defect.
+    assert "no records yet" in text
+    assert "whyloom context" in text  # a next step
+
+
+def test_learnings_frames_uncovered_as_normal_not_a_todo_list():
+    # Pilot confusion: "Uncovered source files: 1136" read as 1136 problems. The
+    # whole-repo view must frame uncovered coverage as expected, not actionable.
+    payload = {
+        "proposal_count": 0,
+        "uncovered_count": 1136,
+        "uncovered": ["a.py", "b.py"],
+        "changed_only": False,
+        "index_present": True,
+    }
+    text = render_human(payload)
+    assert "no proposals are pending" in text
+    assert "1136 source file(s) have no recorded rationale" in text
+    assert "normal" in text and "--changed" in text
+
+
+def test_learnings_changed_lists_gaps_in_touched_files():
+    payload = {
+        "proposal_count": 2,
+        "uncovered_count": 1,
+        "uncovered": ["src/auth.py"],
+        "changed_only": True,
+        "index_present": True,
+    }
+    text = render_human(payload)
+    assert "2 proposed record(s) awaiting your acceptance" in text
+    assert "whyloom accept" in text
+    assert "Rationale gaps in what you changed" in text and "src/auth.py" in text
+    assert "whyloom reflect" in text
+
+
 def test_unknown_shape_falls_back_to_json():
     payload = {"some": "unmapped", "shape": [1, 2, 3]}
     text = render_human(payload)
