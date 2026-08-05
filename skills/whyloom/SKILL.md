@@ -82,10 +82,15 @@ The command returns an `agent_brief` (the task summary, changed paths, and the
 symbols in each changed file) and writes a proposal skeleton with `<!-- agent: -->`
 prompts. Complete it yourself: open the generated proposal and fill the
 `Decision`, `Rationale`, `Alternatives`, `Consequences`, and `Open questions`
-sections from the brief and the diff. Ground every claim in the listed evidence
-paths and symbols, state confidence, and record anything uncertain as an open
-question instead of inventing rationale. Leave the record `proposed` for normal
-human review. Never accept a record on the agent's own authority.
+sections from the brief and the diff.
+
+Trust here is **grounding, not authorship**: every claim in `Decision`,
+`Rationale`, and `Consequences` must be traceable to a changed file/symbol in the
+Evidence list — cite the path. Anything you cannot tie to the code (the intent
+behind the change, tradeoffs not visible in the diff, alternatives not shown) goes
+in `Open questions`, never asserted as rationale. An authoritative record that
+cites no verifiable code fails validation (`TRUST002`) and cannot govern. Leave
+the record `draft` for human review; never accept it on the agent's own authority.
 
 Reflect works without Git: when no repository or diff is available it detects
 changed files from the index (`baseline: filesystem`), so it can capture learning
