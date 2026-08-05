@@ -147,6 +147,17 @@ class ProjectRecord(BaseModel):
         """True when at least one human has verified this record — the review gate."""
         return any(v.is_human() for v in self.verified)
 
+    def is_verified(self) -> bool:
+        """True when any actor (human or process) has verified this record."""
+        return bool(self.verified)
+
+    def is_structural(self) -> bool:
+        """Whether this record states what code IS (structure/role), as opposed to
+        WHY a choice was made. Structural claims are provable from code, so a
+        grounded structural record can govern on evidence alone; decision/why
+        claims are not in the code and still require human review."""
+        return self.type == RecordType.ARCHITECTURE
+
     def looks_agent_generated(self) -> bool:
         """Whether the current content was produced by a non-human. Prefers the
         explicit OKF `generated.by`; falls back to the legacy signals (an INFERRED

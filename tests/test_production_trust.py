@@ -209,6 +209,44 @@ def test_validate_allows_confidence_record_that_stays_proposed(tmp_path):
     assert not any(e["code"] == "TRUST001" for e in result["errors"])
 
 
+def _stable_record(root, name, *, record_id, rtype, verifier, targets):
+    (root / ".whyloom" / "architecture").mkdir(parents=True, exist_ok=True)
+    tlines = "".join(f"- {t}\n" for t in targets) or ""
+    tblock = f"targets:\n{tlines}" if targets else "targets: []\n"
+    (root / ".whyloom" / "architecture" / name).write_text(
+        f"---\nid: {record_id}\ntype: {rtype}\ntitle: X\nstatus: stable\ndate: 2026-08-05\n"
+        f"{tblock}constraints: []\nsupersedes: []\n"
+        f'verified:\n- by: {verifier}\n  at: "2026-08-05T00:00:00Z"\n---\n\n## Role\nx\n',
+        encoding="utf-8",
+    )
+
+
+def test_grounded_structural_record_governs_with_process_verifier(tmp_path):
+    # DEC-0008 onboarding: a structural (architecture) record states what code IS,
+    # provable from evidence — so a grounded one may be verified by a process
+    # (process:bootstrap) and govern human-less.
+    from whyloom.operations import validate_project
+
+    root = _repo(tmp_path)
+    _stable_record(root, "0001.md", record_id="ARC-1", rtype="architecture", verifier="process:bootstrap", targets=["src/auth.py"])
+    index_project(root, DEFAULT_CONFIG)
+    result = validate_project(root, DEFAULT_CONFIG)
+    assert result["valid"], [e["code"] for e in result["errors"]]
+
+
+def test_decision_record_still_requires_human_verifier(tmp_path):
+    # A decision states WHY — not in the code — so a process verifier is not enough;
+    # it still requires a human. Prevents an agent stamping fabricated history.
+    from whyloom.operations import validate_project
+
+    root = _repo(tmp_path)
+    _stable_record(root, "0001.md", record_id="DEC-1", rtype="decision", verifier="process:bootstrap", targets=["src/auth.py"])
+    index_project(root, DEFAULT_CONFIG)
+    result = validate_project(root, DEFAULT_CONFIG)
+    assert not result["valid"]
+    assert any(e["code"] == "TRUST001" for e in result["errors"])
+
+
 def test_validate_flags_ungrounded_stable_record(tmp_path):
     # Evidence-grounding gate (DEC-0008): an authoritative record whose claims cite
     # no verifiable code (no targets, no evidence naming a real file) is ungrounded

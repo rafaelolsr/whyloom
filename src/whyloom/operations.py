@@ -507,24 +507,28 @@ def validate_project(root: Path, config: dict) -> dict:
                 diagnostics.append(Diagnostic(code="LINK002", severity="error", message=f"record reference does not exist: {reference}", path=record.path.as_posix()))
         if record.id in record.supersedes:
             diagnostics.append(Diagnostic(code="LIFE001", severity="error", message="record cannot supersede itself", path=record.path.as_posix()))
-        # Trust gate (OKF-exact): a governing record must carry a human verified[]
-        # entry. If it is authoritative (stable/accepted) but no human has verified
-        # it, it reached authority without review — the one thing whyloom prevents.
-        # This replaces the old confidence/INFERRED-id heuristic with the explicit
-        # OKF signal; `accept_records` writes the verifier when a human accepts.
-        if record.okf_status() in {RecordStatus.STABLE} and not record.human_verified():
-            diagnostics.append(
-                Diagnostic(
-                    code="TRUST001",
-                    severity="error",
-                    message=(
-                        f"record is authoritative (status '{record.status.value}') but has no human "
-                        "verified[] entry; accept it through review (whyloom accept) rather than "
-                        "setting the status directly"
-                    ),
-                    path=record.path.as_posix(),
+        # Trust gate: a governing record must be verified. A DECISION or CONSTRAINT
+        # states WHY a choice was made — not provable from code — so it requires a
+        # HUMAN verifier. A structural/role (architecture) record states what the
+        # code IS, which is provable from evidence, so a grounded one may be
+        # verified by a process (e.g. process:bootstrap) and govern human-less
+        # (DEC-0008). Either way an unverified authoritative record is invalid.
+        if record.okf_status() in {RecordStatus.STABLE}:
+            if record.is_structural():
+                ok = record.is_verified()  # human or process (grounding checked by TRUST002)
+                hint = "verify it (a grounded structural record may be verified by process:bootstrap)"
+            else:
+                ok = record.human_verified()
+                hint = "a decision/constraint states WHY and requires a human verified[] entry (whyloom accept)"
+            if not ok:
+                diagnostics.append(
+                    Diagnostic(
+                        code="TRUST001",
+                        severity="error",
+                        message=f"authoritative record (status '{record.status.value}') is unverified; {hint}",
+                        path=record.path.as_posix(),
+                    )
                 )
-            )
         # Evidence-grounding gate (DEC-0008): a governing record's claims must be
         # anchored in real code. Trust is consistency with the codebase, not a
         # signature — so an authoritative record that cites no resolvable file
