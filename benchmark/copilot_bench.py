@@ -108,7 +108,7 @@ def _pct_delta(without: float, with_: float) -> str:
 def _report(w: RunMetrics, wo: RunMetrics) -> str:
     rows = [
         ("LLM calls", wo.llm_calls, w.llm_calls),
-        ("Tool calls", wo.tool_calls, w.tool_calls),
+        ("Shell tool calls", wo.tool_calls, w.tool_calls),
         ("  · whyloom calls", wo.whyloom_calls, w.whyloom_calls),
         ("  · grep/read calls", wo.grep_read_calls, w.grep_read_calls),
         ("Context tokens (read)", wo.context_tokens, w.context_tokens),
@@ -133,6 +133,18 @@ def _report(w: RunMetrics, wo: RunMetrics) -> str:
             "",
             f"  → Whyloom read {_pct_delta(wo.context_tokens, w.context_tokens)} the context tokens "
             f"({_fmt_int(saved)} fewer) to answer the same question.",
+        ]
+    # Honesty note: Copilot's default (no-Whyloom) context gathering is its own
+    # built-in semantic retrieval, which does NOT run shell commands — so a
+    # baseline showing 0 tool/grep calls is expected and did real work (see its
+    # context tokens), it just didn't shell out. The headline metric is context
+    # tokens read, which is logged accurately for both runs.
+    if wo.tool_calls == 0 and wo.context_tokens > 0:
+        out += [
+            "",
+            "  note: the baseline ran 0 shell tools — Copilot gathered context via its",
+            "  built-in semantic retrieval, not grep. It did real work (see its context",
+            "  tokens); context-tokens-read is the like-for-like metric, not tool count.",
         ]
     return "\n".join(out)
 
