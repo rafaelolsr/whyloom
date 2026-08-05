@@ -240,12 +240,12 @@ def _render_report(evidence: list[BootstrapEvidence], truncated: bool, structura
     lines.extend(
         [
             "",
-            "## Review boundary",
+            "## Trust boundary",
             "",
-            "- Treat every inferred decision, constraint, and architectural claim as proposed.",
-            "- Cite evidence identifiers and state confidence on every proposal.",
+            "- Trust is grounding, not authorship: a record governs when its claims cite resolvable code.",
+            "- A structural (architecture) record — what the code IS — may be `stable` + `process:bootstrap` verified and govern with no human, when every claim is cited.",
+            "- A decision/constraint — WHY a choice was made — is not in the code; never assert it. Capture an unrecorded why as an open question for a human.",
             "- Record uncertainty as open questions instead of inventing rationale.",
-            "- Require human review before changing a proposal to accepted or implemented.",
             "",
             "## Next step",
             "",
@@ -384,8 +384,8 @@ def onboard_project(
             "agent_actions": [
                 "Inspect every significant structural community and the bounded evidence.",
                 "Trace high-signal cross-community workflows and record uncovered areas.",
-                "Create only evidence-backed proposed Whyloom records.",
-                "Record confidence, citations, and open questions.",
+                "Create grounded structural records (stable + process:bootstrap) whose every claim cites resolvable code.",
+                "Capture unrecorded reasons as open questions for a human, not asserted decisions.",
                 "Run Whyloom validation and complete onboarding.",
             ],
         }

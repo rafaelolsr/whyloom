@@ -73,7 +73,9 @@ def test_bootstrap_collects_bounded_evidence_without_changing_records(tmp_path):
     assert all(len(item["summary"]) <= 240 for item in manifest["evidence"])
     report = (root / result["report"]).read_text(encoding="utf-8")
     assert "not authoritative" in report
-    assert "Require human review" in report
+    # The trust boundary is grounding, not human-review-of-everything (DEC-0008):
+    # structural facts govern when cited; only the WHY needs a human.
+    assert "Trust is grounding" in report
     assert "Structural coverage" in report
 
 
