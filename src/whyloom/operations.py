@@ -87,6 +87,22 @@ def _index_path(root: Path, config: dict) -> Path:
     return resolve_repository_path(root, config["database"])
 
 
+def _evidence_path(source: str) -> str | None:
+    """A repo-relative file path if the evidence source names one, else None.
+
+    Evidence sources are free text (a file, a URL, a doc title, a commit). Only
+    file-like sources can be verified against the working tree; strip an optional
+    `:line` suffix and treat obvious non-paths (URLs) as unverifiable-here."""
+    source = (source or "").strip()
+    if not source or "://" in source:
+        return None
+    candidate = source.split(":", 1)[0].strip() if source.rsplit(":", 1)[-1].isdigit() else source
+    # Must look like a repo path, not prose (no spaces, has a suffix or a slash).
+    if " " in candidate or ("/" not in candidate and "." not in candidate):
+        return None
+    return candidate.lstrip("./")
+
+
 def _render_record_markdown(metadata: dict, sections: list[tuple[str, str]], preamble: str = "") -> str:
     """Render a record/proposal file: YAML front matter, an optional HTML-comment
     preamble, then ``## Heading`` blocks in the given order. Shared by reflect and
@@ -509,6 +525,32 @@ def validate_project(root: Path, config: dict) -> dict:
                     path=record.path.as_posix(),
                 )
             )
+        # Evidence-grounding gate (DEC-0008): a governing record's claims must be
+        # anchored in real code. Trust is consistency with the codebase, not a
+        # signature — so an authoritative record that cites no resolvable file
+        # (no targets, and no evidence source naming an existing file) is
+        # ungrounded and cannot govern. Catches hallucinated rationale, whose
+        # "why" cites nothing that resolves.
+        if record.okf_status() in {RecordStatus.STABLE}:
+            grounded_targets = bool(record.targets)
+            grounded_evidence = any(
+                (root / _evidence_path(item.source)).exists()
+                for item in record.evidence
+                if _evidence_path(item.source)
+            )
+            if not grounded_targets and not grounded_evidence:
+                diagnostics.append(
+                    Diagnostic(
+                        code="TRUST002",
+                        severity="error",
+                        message=(
+                            "authoritative record cites no verifiable code: add a `targets` path or an "
+                            "`evidence` entry naming a real file. Ungrounded rationale cannot govern "
+                            "(trust is consistency with the code, not authorship)."
+                        ),
+                        path=record.path.as_posix(),
+                    )
+                )
 
     supersession_graph = {record.id: record.supersedes for record in records}
 
@@ -721,15 +763,17 @@ def reflect_project(
         metadata,
         [
             ("Context", task_summary.strip()),
-            ("Decision", "<!-- agent: the concrete choice this work embodies. -->"),
-            ("Rationale", "<!-- agent: why this choice, grounded in the changed symbols and evidence below. -->"),
-            ("Alternatives", "<!-- agent: options considered and why they were not chosen; omit if unknown. -->"),
-            ("Consequences", "<!-- agent: follow-up work, costs, and constraints this introduces. -->"),
-            ("Open questions", "<!-- agent: anything you could not determine from the evidence. -->"),
+            ("Decision", "<!-- agent: the concrete choice this work embodies. Cite the changed file/symbol that carries it, e.g. `src/auth.py:rotate`. -->"),
+            ("Rationale", "<!-- agent: why this choice. Every sentence must be traceable to a changed symbol in the Evidence list. If you cannot point at the code for a claim, it does not belong here — move it to Open questions. -->"),
+            ("Alternatives", "<!-- agent: options considered and why not chosen, only if the diff or task summary shows them; else omit. -->"),
+            ("Consequences", "<!-- agent: follow-up work, costs, and constraints this introduces, grounded in the change. -->"),
+            ("Open questions", "<!-- agent: everything you could NOT ground in the evidence — the intent behind the change, tradeoffs not visible in the diff, anything you are inferring. Put it here rather than asserting it as rationale. -->"),
             ("Evidence", "\n".join(evidence_lines) or "- No changed paths were detected."),
         ],
-        preamble="<!-- agent: complete every section below from the task summary, the changed files, and their symbols. "
-        "Cite evidence paths. State confidence. Record uncertainty as open questions. Do not invent rationale. -->",
+        preamble="<!-- agent: trust here is grounding, not authorship (see DEC-0008). Complete each section ONLY from the "
+        "task summary and the changed files/symbols in Evidence. Cite the evidence path for every claim. Anything you "
+        "cannot tie to the code — intent, tradeoffs, alternatives not in the diff — goes in Open questions, never asserted "
+        "as rationale. An ungrounded record fails validation (TRUST002) and cannot govern. Do not invent rationale. -->",
     )
     path.write_text(body, encoding="utf-8")
     return {

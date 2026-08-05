@@ -209,6 +209,45 @@ def test_validate_allows_confidence_record_that_stays_proposed(tmp_path):
     assert not any(e["code"] == "TRUST001" for e in result["errors"])
 
 
+def test_validate_flags_ungrounded_stable_record(tmp_path):
+    # Evidence-grounding gate (DEC-0008): an authoritative record whose claims cite
+    # no verifiable code (no targets, no evidence naming a real file) is ungrounded
+    # and cannot govern — the shape of hallucinated rationale.
+    from whyloom.operations import validate_project
+
+    root = _repo(tmp_path)
+    (root / ".whyloom" / "decisions").mkdir(parents=True, exist_ok=True)
+    (root / ".whyloom" / "decisions" / "0001-x.md").write_text(
+        "---\nid: DEC-X\ntype: decision\ntitle: We chose microservices\nstatus: stable\n"
+        "date: 2026-08-05\ntargets: []\nconstraints: []\nsupersedes: []\n"
+        'verified:\n  - by: human:me\n    at: "2026-08-05T00:00:00Z"\n---\n\n'
+        "## Decision\nMicroservices for scale.\n",
+        encoding="utf-8",
+    )
+    index_project(root, DEFAULT_CONFIG)
+    result = validate_project(root, DEFAULT_CONFIG)
+    assert not result["valid"]
+    assert any(e["code"] == "TRUST002" for e in result["errors"])
+
+
+def test_validate_allows_grounded_stable_record(tmp_path):
+    # A stable record that cites a real target file is grounded — it governs.
+    from whyloom.operations import validate_project
+
+    root = _repo(tmp_path)
+    (root / ".whyloom" / "decisions").mkdir(parents=True, exist_ok=True)
+    (root / ".whyloom" / "decisions" / "0001-x.md").write_text(
+        "---\nid: DEC-X\ntype: decision\ntitle: Auth approach\nstatus: stable\n"
+        "date: 2026-08-05\ntargets:\n- src/auth.py\nconstraints: []\nsupersedes: []\n"
+        'verified:\n  - by: human:me\n    at: "2026-08-05T00:00:00Z"\n---\n\n'
+        "## Decision\nRotate on every use.\n",
+        encoding="utf-8",
+    )
+    index_project(root, DEFAULT_CONFIG)
+    result = validate_project(root, DEFAULT_CONFIG)
+    assert not any(e["code"] == "TRUST002" for e in result["errors"])
+
+
 def test_validate_flags_stable_record_without_human_verifier(tmp_path):
     # OKF-exact trust gate: a record that is authoritative (stable) but carries no
     # human verified[] entry reached authority without review. Setting status
