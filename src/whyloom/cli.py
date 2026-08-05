@@ -108,21 +108,7 @@ def _human_lines(p: dict[str, Any]) -> list[str] | None:  # noqa: C901 - a flat 
 
     # context / compact context.
     if "governing_records" in p and ("files" in p or "symbols" in p):
-        if "task" in p:
-            out.append(f"Task: {p['task']}")
-        gov = p["governing_records"]
-        out.append(f"Governing records ({len(gov)}):")
-        out += [f"  • {r.get('id', '?')} — {r.get('title') or r.get('label', '')}" for r in gov] or ["  (none accepted)"]
-        prop = p.get("proposed_records") or []
-        if prop:
-            out.append(f"Proposed (unreviewed) ({len(prop)}):")
-            out += [f"  • {r.get('id', '?')} — {r.get('title', '')}" for r in prop]
-        files = [f if isinstance(f, str) else f.get("path") for f in p.get("files", [])]
-        if files:
-            out.append("Files: " + ", ".join(f for f in files if f))
-        for w in p.get("warnings", []):
-            out.append(f"  ⚠ {w}")
-        return out
+        return _context_lines(p)
 
     # explain (found or not — the not-found payload omits governing_records).
     if "found" in p and "target" in p and "hops" not in p and "affected" not in p:
@@ -144,16 +130,7 @@ def _human_lines(p: dict[str, Any]) -> list[str] | None:  # noqa: C901 - a flat 
 
     # impact.
     if "affected" in p and "counts" in p:
-        c = p["counts"]
-        out.append(f"Impact of {p.get('target', '')}: "
-                   f"{c.get('records', 0)} record(s), {c.get('symbols', 0)} symbol(s), {c.get('callers', 0)} caller(s)")
-        syms = [s["name"] for s in p["affected"].get("symbols", [])][:8]
-        if syms:
-            out.append("  symbols: " + ", ".join(syms))
-        callers = [x["label"] for x in p["affected"].get("downstream_callers", [])]
-        if callers:
-            out.append("  callers: " + ", ".join(callers))
-        return out
+        return _impact_lines(p)
 
     # accept.
     if "accepted" in p and "accepted_count" in p:
@@ -299,6 +276,65 @@ def _explain_lines(p: dict[str, Any]) -> list[str]:
 
     for w in p.get("warnings", []):
         out.append(f"  ⚠ {w}")
+    return out
+
+
+def _context_lines(p: dict[str, Any]) -> list[str]:
+    """Render `context` to teach as it answers: lead with the code that matters,
+    label each section in plain words, explain an empty rationale slot instead of
+    printing a bare zero, and end with a concrete next step."""
+    out: list[str] = [f"Task: {p.get('task', '')}", ""]
+    files = [f if isinstance(f, str) else f.get("path") for f in p.get("files", [])]
+    files = [f for f in files if f]
+    if files:
+        out.append("Where to look (most relevant code for this task):")
+        out += [f"  {f}" for f in files[:8]]
+    else:
+        out.append("No matching code found — try different words from the codebase.")
+    out.append("")
+
+    gov = p.get("governing_records", [])
+    prop = p.get("proposed_records") or []
+    out.append("Why it's built this way (recorded decisions):")
+    if gov:
+        out += [f"  ✓ {r.get('id', '?')} — {r.get('title') or r.get('label', '')}" for r in gov]
+    elif prop:
+        out.append(f"  ~ {len(prop)} proposed (unreviewed) — a cited starting point, not yet trusted:")
+        out += [f"      {r.get('id', '?')} — {r.get('title', '')}" for r in prop[:3]]
+        out.append("    Review and accept the good ones: whyloom accept <id>")
+    else:
+        out.append("  none yet — no decision has been recorded for this area.")
+        out.append("    The code above is your map; capture the why with: whyloom reflect \"<what and why>\"")
+
+    # Only surface non-obvious warnings (the empty-rationale one is already explained above).
+    extra = [w for w in p.get("warnings", []) if "No accepted decision" not in w]
+    if extra:
+        out.append("")
+        out += [f"  ⚠ {w}" for w in extra]
+    return out
+
+
+def _impact_lines(p: dict[str, Any]) -> list[str]:
+    """Render `impact` answer-first: what a change here touches, in plain words."""
+    c = p["counts"]
+    target = p.get("target", "")
+    callers = [x["label"] for x in p["affected"].get("downstream_callers", [])]
+    syms = [s["name"] for s in p["affected"].get("symbols", [])]
+    out: list[str] = [f"Changing {target} affects:"]
+    if callers:
+        out.append(f"  {len(callers)} caller(s) that depend on it — review these first:")
+        out += [f"    {name}" for name in callers[:8]]
+        if len(callers) > 8:
+            out.append(f"    … and {len(callers) - 8} more")
+    else:
+        out.append("  No callers found — nothing else references it, so a change here is contained.")
+    if syms:
+        out.append(f"  {len(syms)} symbol(s) defined here (functions/classes in this file).")
+    recs = c.get("records", 0)
+    if recs:
+        out.append(f"  {recs} governing record(s) — a decision constrains this; check before changing.")
+    else:
+        out.append("  No governing decision recorded — change is unconstrained by project memory.")
     return out
 
 
