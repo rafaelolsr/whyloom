@@ -96,20 +96,22 @@ def _looks_inferred(record: dict) -> bool:
 
 def context_packet(store: GraphStore, task: str, max_depth: int = 2, max_items: int = 20) -> dict:
     candidates = [item for item in store.search(task, max(50, max_items * 3)) if item["type"] in SEED_PRIORITY]
-    def source_penalty(item: dict) -> float:
-        path = (item.get("path") or "").casefold()
-        penalty = 2.0 if item["type"] == "ConfigKey" else 0.0
-        if path.startswith(("tests/", "evals/")) or "/tests/" in path or "/poc/" in path:
-            penalty += 5.0
-        return penalty
 
-    candidates.sort(
-        key=lambda item: (
-            item.get("lexical_rank", 0.0) + source_penalty(item),
-            SEED_PRIORITY[item["type"]],
-            item["label"],
+    def demote(item: dict) -> bool:
+        # Tests/config/poc are weak seeds — push them after real sources, but keep
+        # search's already-diversified order otherwise. Re-sorting purely by
+        # lexical_rank here would undo the per-file diversification search applied,
+        # re-clustering one symbol-dense file's hits and burying sibling files.
+        path = (item.get("path") or "").casefold()
+        return (
+            item["type"] == "ConfigKey"
+            or path.startswith(("tests/", "evals/"))
+            or "/tests/" in path
+            or "/poc/" in path
         )
-    )
+
+    # Stable partition preserves search order within each group.
+    candidates = [c for c in candidates if not demote(c)] + [c for c in candidates if demote(c)]
     seeds = candidates[: min(max_items, 5)]
     # A governing record links to a File node (APPLIES_TO/IMPLEMENTS/CONSTRAINED_BY),
     # but lexical search usually matches the Symbols *inside* a file, not the File

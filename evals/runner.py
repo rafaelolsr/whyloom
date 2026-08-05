@@ -57,6 +57,17 @@ SUITES = [
         "cases": ROOT / "evals" / "cases" / "cases_multi_lang.json",
         "gate": "recall",
     },
+    {
+        # Zero-record retrieval: proves the day-zero graph finds the RIGHT file
+        # with no rationale records at all, including two ranking traps a naive
+        # lexical search fails — term-frequency (a noise file repeating a query
+        # word) and file-monopoly (a symbol-dense file burying a sparse relevant
+        # one). Gates on recall; this is the benefit measured in the benchmark.
+        "name": "zero-record-retrieval",
+        "fixture": ROOT / "evals" / "fixtures" / "zero_record",
+        "cases": ROOT / "evals" / "cases" / "cases_zero_record.json",
+        "gate": "recall",
+    },
 ]
 
 
