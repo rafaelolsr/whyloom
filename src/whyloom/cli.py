@@ -320,8 +320,17 @@ def _flow_lines(p: dict[str, Any]) -> list[str]:
 
     def walk(node: dict, indent: int) -> None:
         for call in node.get("calls", []):
-            path = call.get("path")
-            suffix = f"  ({path})" if path else ""
+            path, line = call.get("path"), call.get("line")
+            # Cite file:line where the call is made, so the reader can jump to the
+            # exact spot instead of re-reading the file to find it.
+            if path and line:
+                suffix = f"  ({path}:{line})"
+            elif path:
+                suffix = f"  ({path})"
+            elif line:
+                suffix = f"  (:{line})"
+            else:
+                suffix = ""
             out.append("  " * (indent + 1) + f"→ {call['name']}{suffix}")
             if call.get("flow"):
                 walk(call["flow"], indent + 1)
@@ -808,7 +817,7 @@ def impact_command(
 @app.command("flow")
 def flow_command(
     target: str = typer.Argument(..., help="An entry file or symbol to trace execution from."),
-    depth: int = typer.Option(2, "--depth", help="How many call levels to follow."),
+    depth: int = typer.Option(3, "--depth", help="How many call levels to follow."),
     root: Path | None = typer.Option(None, "--root"),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:

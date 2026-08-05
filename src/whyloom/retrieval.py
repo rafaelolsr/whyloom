@@ -470,6 +470,15 @@ _FLOW_NOISE = frozenset({
     "super", "getattr", "setattr", "hasattr", "enumerate", "zip", "sorted", "any", "all",
     "loads", "dumps", "type", "insert", "extend", "reversed", "field", "pop", "copy",
     "map", "filter", "next", "iter", "min", "max", "sum", "abs", "round", "repr",
+    # Tracing/observability, formatting, and regex helpers: real calls, but they
+    # describe plumbing, not the behavior a "how does it work" reader wants.
+    "async_trace_span", "trace_span", "span", "get_client", "clear",
+    "sub", "group", "match", "search", "findall", "compile", "encode", "decode",
+    "isoformat", "now", "utcnow", "time", "sleep", "gather", "create_task", "wait",
+    "getLogger", "log", "count", "index", "replace", "rstrip", "lstrip", "title",
+    # Declaration helpers that show up as "calls" at leaves but describe types,
+    # not behavior.
+    "dataclass", "field", "Field", "ConfigDict", "BaseModel", "Enum", "auto",
 })
 
 
@@ -481,7 +490,7 @@ def _ordered_calls(store: GraphStore, symbol_id: str) -> list[dict]:
     the trace reads as behavior, not boilerplate. Deterministic — no LLM."""
     import json as _json
 
-    row = store.connection.execute("SELECT data FROM nodes WHERE id = ?", (symbol_id,)).fetchone()
+    row = store.connection.execute("SELECT data, source_path FROM nodes WHERE id = ?", (symbol_id,)).fetchone()
     if not row or not row["data"]:
         return []
     ordered = sorted(_json.loads(row["data"]).get("calls", []), key=lambda c: c.get("line") or 0)
@@ -489,6 +498,15 @@ def _ordered_calls(store: GraphStore, symbol_id: str) -> list[dict]:
     resolved: dict[str, str] = {}
     for edge in store.connection.execute("SELECT target FROM edges WHERE source = ? AND type = 'CALLS'", (symbol_id,)):
         resolved.setdefault(edge["target"].rsplit(":", 1)[-1], edge["target"])
+    # Fallback: a `self.method()` call to a sibling in the same class/file often
+    # has no CALLS edge, yet the target symbol exists. Resolve by same-file label
+    # so the flow can descend into it (e.g. the loop the orchestrator drives).
+    source_path = row["source_path"]
+    if source_path:
+        for sib in store.connection.execute(
+            "SELECT id, label FROM nodes WHERE type = 'Symbol' AND source_path = ?", (source_path,)
+        ):
+            resolved.setdefault(sib["label"].rsplit(".", 1)[-1], sib["id"])
     seen: set[str] = set()
     steps: list[dict] = []
     for call in ordered:
@@ -500,11 +518,13 @@ def _ordered_calls(store: GraphStore, symbol_id: str) -> list[dict]:
     return steps
 
 
-def flow_trace(store: GraphStore, target: str, max_depth: int = 2, max_steps: int = 12) -> dict:
+def flow_trace(store: GraphStore, target: str, max_depth: int = 3, max_steps: int = 15) -> dict:
     """Trace the ordered execution flow from an entry symbol: the sequence of
-    project calls it makes, following resolved calls one level deeper. Answers
-    "how does X work" structurally — the call skeleton — without reading code or
-    an LLM. Depth-bounded so it names the shape, not every leaf."""
+    project calls it makes, following resolved calls deeper. Answers "how does X
+    work" structurally — the call skeleton, deep enough that the orchestrating
+    method's key sub-steps (e.g. the loop it drives) expand rather than dead-end
+    at one leaf — without reading code or an LLM. Depth-bounded so it names the
+    shape, not every leaf."""
     node = _resolve_node(store, target)
     if node is None:
         return {"target": target, "found": False, "steps": [], "warnings": ["Target not found in the graph."]}

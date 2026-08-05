@@ -195,6 +195,34 @@ def test_flow_on_class_name_resolves_to_orchestrating_method(tmp_path):
     assert names == ["load", "step", "save"]
 
 
+def test_flow_descends_into_sibling_method(tmp_path):
+    # Depth improvement: a `self.method()` call to a sibling in the same class
+    # often has no CALLS edge, so flow used to dead-end at it (e.g. `_run_loop`
+    # shown but never expanded). It must resolve same-file siblings and descend,
+    # so the orchestrating method's key sub-step (the loop it drives) is traced.
+    from whyloom.operations import init_project
+    from whyloom.retrieval import flow_trace
+
+    root = tmp_path / "repo"
+    (root / "src").mkdir(parents=True)
+    (root / "src" / "svc.py").write_text(
+        "def fetch():\n    return 1\n\n"
+        "class Runner:\n"
+        "    def process(self):\n        fetch()\n        self.run_loop()\n"
+        "    def run_loop(self):\n        self.iterate()\n"
+        "    def iterate(self):\n        return 3\n",
+        encoding="utf-8",
+    )
+    init_project(root)
+    index_project(root, DEFAULT_CONFIG)
+    with GraphStore(root / DEFAULT_CONFIG["database"]) as store:
+        result = flow_trace(store, "Runner")
+    # process → run_loop must expand into run_loop's own calls (iterate).
+    run_loop = next(c for c in result["flow"]["calls"] if c["name"] == "run_loop")
+    assert run_loop["flow"], "run_loop should expand, not dead-end"
+    assert any(c["name"] == "iterate" for c in run_loop["flow"]["calls"])
+
+
 def test_find_path_between_file_and_record(tmp_path):
     root = tmp_path / "repo"
     shutil.copytree(FIXTURE, root)
