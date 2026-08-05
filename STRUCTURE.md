@@ -245,6 +245,14 @@ Returns a compact, ranked task packet: relevant files and symbols, governing dec
 
 Traverses outward from a file, symbol, decision, or constraint and groups likely affected artifacts by relationship and confidence.
 
+### `whyloom flow <target>`
+
+Traces the ordered execution flow from an entry file or symbol: the sequence of
+project calls it makes, followed a bounded number of levels deep and resolved to
+the files they live in. Answers "how does this work" as a deterministic call
+skeleton — no LLM — so an agent narrates behavior from the sequence instead of
+grepping to reconstruct it.
+
 ### `whyloom path <source> <target>`
 
 Runs a breadth-first shortest-path search between two resolved entities and returns the minimal hop sequence. Each hop names the edge type and its provenance and confidence, and the path may route through governing decisions and constraints, so the connection is auditable rather than opaque.

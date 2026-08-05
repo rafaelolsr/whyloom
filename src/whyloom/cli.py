@@ -28,7 +28,7 @@ from .operations import (
     validate_project,
 )
 from .report import build_report_data, render_report_markdown
-from .retrieval import compact_context_packet, context_packet, explain_target, find_path, impact_analysis
+from .retrieval import compact_context_packet, context_packet, explain_target, find_path, flow_trace, impact_analysis
 from .store import CorruptIndexError, GraphStore
 from .usage import record_query, usage_report
 
@@ -107,8 +107,15 @@ def _human_lines(p: dict[str, Any]) -> list[str] | None:  # noqa: C901 - a flat 
     if "governing_records" in p and ("files" in p or "symbols" in p):
         return _context_lines(p)
 
+    # flow (ordered execution trace). Checked before explain: both carry
+    # found+target, but a flow payload has the distinguishing `flow` key.
+    if "flow" in p and "entry" in p:
+        if not p.get("found"):
+            return [f"✗ {p.get('target', '')}: " + "; ".join(p.get("warnings", ["not found"]))]
+        return _flow_lines(p)
+
     # explain (found or not — the not-found payload omits governing_records).
-    if "found" in p and "target" in p and "hops" not in p and "affected" not in p:
+    if "found" in p and "target" in p and "hops" not in p and "affected" not in p and "flow" not in p:
         if not p["found"]:
             warn = "; ".join(p.get("warnings", ["not found"]))
             return [f"✗ {p['target']}: {warn}"]
@@ -303,6 +310,28 @@ def _context_lines(p: dict[str, Any]) -> list[str]:
     if extra:
         out.append("")
         out += [f"  ⚠ {w}" for w in extra]
+    return out
+
+
+def _flow_lines(p: dict[str, Any]) -> list[str]:
+    """Render `flow` as an indented, ordered call tree — the execution skeleton,
+    each step naming the file it resolves into so the reader can verify."""
+    out: list[str] = [f"Execution flow from {p.get('entry', p.get('target', ''))}:"]
+
+    def walk(node: dict, indent: int) -> None:
+        for call in node.get("calls", []):
+            path = call.get("path")
+            suffix = f"  ({path})" if path else ""
+            out.append("  " * (indent + 1) + f"→ {call['name']}{suffix}")
+            if call.get("flow"):
+                walk(call["flow"], indent + 1)
+
+    flow = p.get("flow") or {}
+    if not flow.get("calls"):
+        out.append("  (no traced calls — this entry makes no resolved project calls)")
+    else:
+        walk(flow, 0)
+    out.append("Each step is a real call in source order; read the cited files to confirm behavior.")
     return out
 
 
@@ -773,6 +802,23 @@ def impact_command(
         payload = impact_analysis(store, target, config["max_depth"], config["max_items"])
         payload = add_staleness_warning(payload, resolved, config, store)
     record_query(resolved, config, "impact", target, payload.get("counts", {}))
+    emit(payload, as_json)
+
+
+@app.command("flow")
+def flow_command(
+    target: str = typer.Argument(..., help="An entry file or symbol to trace execution from."),
+    depth: int = typer.Option(2, "--depth", help="How many call levels to follow."),
+    root: Path | None = typer.Option(None, "--root"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Trace the ordered execution flow from an entry point — the call skeleton
+    that answers "how does this work" structurally, deterministically."""
+    resolved, config = project(root, as_json)
+    with open_existing_store(resolved, config, as_json) as store:
+        payload = flow_trace(store, target, max_depth=depth)
+        payload = add_staleness_warning(payload, resolved, config, store)
+    record_query(resolved, config, "flow", target, {"found": payload.get("found", False)})
     emit(payload, as_json)
 
 

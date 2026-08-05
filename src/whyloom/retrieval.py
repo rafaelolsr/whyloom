@@ -450,6 +450,97 @@ def _enrich_governing(records: list[dict], root: Path | None, config: dict | Non
         item["open_questions"] = record.open_questions
 
 
+# Trivial builtins/logging that add no signal to an execution-flow trace.
+_FLOW_NOISE = frozenset({
+    "len", "range", "print", "isinstance", "str", "list", "dict", "set", "tuple",
+    "int", "float", "bool", "append", "get", "keys", "values", "items", "startswith",
+    "endswith", "join", "format", "split", "strip", "lower", "upper", "set_attribute",
+    "debug", "info", "warning", "error", "exception", "isEnabledFor", "add", "update",
+    "super", "getattr", "setattr", "hasattr", "enumerate", "zip", "sorted", "any", "all",
+    "loads", "dumps", "type", "insert", "extend", "reversed", "field", "pop", "copy",
+    "map", "filter", "next", "iter", "min", "max", "sum", "abs", "round", "repr",
+})
+
+
+def _ordered_calls(store: GraphStore, symbol_id: str) -> list[dict]:
+    """The meaningful project-symbol calls a symbol makes, in source order.
+
+    Order comes from the symbol's recorded `calls` (line numbers); resolution to
+    real symbol nodes comes from its CALLS edges. Trivial builtins are dropped so
+    the trace reads as behavior, not boilerplate. Deterministic — no LLM."""
+    import json as _json
+
+    row = store.connection.execute("SELECT data FROM nodes WHERE id = ?", (symbol_id,)).fetchone()
+    if not row or not row["data"]:
+        return []
+    ordered = sorted(_json.loads(row["data"]).get("calls", []), key=lambda c: c.get("line") or 0)
+    # Map short call names to resolved symbol ids via CALLS edges.
+    resolved: dict[str, str] = {}
+    for edge in store.connection.execute("SELECT target FROM edges WHERE source = ? AND type = 'CALLS'", (symbol_id,)):
+        resolved.setdefault(edge["target"].rsplit(":", 1)[-1], edge["target"])
+    seen: set[str] = set()
+    steps: list[dict] = []
+    for call in ordered:
+        name = (call.get("target") or "").split(".")[-1]
+        if not name or name in _FLOW_NOISE or name in seen:
+            continue
+        seen.add(name)
+        steps.append({"name": name, "line": call.get("line"), "resolved": resolved.get(name)})
+    return steps
+
+
+def flow_trace(store: GraphStore, target: str, max_depth: int = 2, max_steps: int = 12) -> dict:
+    """Trace the ordered execution flow from an entry symbol: the sequence of
+    project calls it makes, following resolved calls one level deeper. Answers
+    "how does X work" structurally — the call skeleton — without reading code or
+    an LLM. Depth-bounded so it names the shape, not every leaf."""
+    node = _resolve_node(store, target)
+    if node is None:
+        return {"target": target, "found": False, "steps": [], "warnings": ["Target not found in the graph."]}
+
+    # If the entry is a file, start from the symbol that makes the most calls
+    # (usually the orchestrating method), so `flow <file>` is meaningful too.
+    entry = node
+    if node["type"] == "File":
+        import json as _json
+
+        path = node.get("path") or node.get("source_path")
+        candidates = store.connection.execute(
+            "SELECT id, label, data FROM nodes WHERE type = 'Symbol' AND source_path = ?", (path,)
+        ).fetchall()
+        # The behavioral entry is the orchestrating method — the one making the
+        # most meaningful project calls. Skip dunders (__init__ wires deps, not
+        # behavior). Simple and robust; the caller can also pass a symbol directly.
+        best, best_n = None, -1
+        for row in candidates:
+            name = row["label"].split(".")[-1]
+            if name.startswith("__") and name.endswith("__"):
+                continue
+            data = _json.loads(row["data"]) if row["data"] else {}
+            n = sum(1 for c in data.get("calls", []) if (c.get("target") or "").split(".")[-1] not in _FLOW_NOISE)
+            if n > best_n:
+                best, best_n = row, n
+        if best is not None:
+            entry = {"id": best["id"], "label": best["label"], "type": "Symbol", "path": path}
+
+    def walk(symbol_id: str, label: str, depth: int, seen: set[str]) -> dict:
+        steps = _ordered_calls(store, symbol_id)[:max_steps]
+        node_out = {"symbol": label.split(":")[-1], "calls": []}
+        for step in steps:
+            child = {"name": step["name"], "line": step["line"], "path": None, "flow": None}
+            rid = step.get("resolved")
+            if rid:
+                child["path"] = rid.split(":symbol:")[-1].rsplit(":", 1)[0] if ":symbol:" in rid else rid.split(":")[1] if rid.count(":") >= 2 else None
+                if depth < max_depth and rid not in seen:
+                    seen.add(rid)
+                    child["flow"] = walk(rid, rid.rsplit(":", 1)[-1], depth + 1, seen)
+            node_out["calls"].append(child)
+        return node_out
+
+    trace = walk(entry["id"], entry.get("label", target), 0, {entry["id"]})
+    return {"target": target, "entry": entry.get("label", target), "found": True, "flow": trace, "warnings": []}
+
+
 def explain_target(
     store: GraphStore,
     target: str,
