@@ -31,7 +31,7 @@ def test_propose_creates_proposed_records(tmp_path):
     proposal = next(iter(root.glob(".whyloom/proposals/prop-rationale-*.md")))
     text = proposal.read_text(encoding="utf-8")
     # The trust gate: auto-derived records are proposed, never accepted.
-    assert "status: proposed" in text
+    assert "status: draft" in text
     assert "XSS can read localStorage" in text
 
 
@@ -52,7 +52,7 @@ def test_context_surfaces_proposed_but_not_as_governing(tmp_path):
         packet = context_packet(store, "login refresh token")
     # Proposed rationale is visible...
     assert packet["proposed_records"]
-    assert all(r.get("data", {}).get("status") == "proposed" for r in packet["proposed_records"])
+    assert all(r.get("data", {}).get("status") in {"draft", "proposed"} for r in packet["proposed_records"])
     # ...but never counted as governing (accepted) intent.
     assert packet["governing_records"] == []
     assert any("review before trusting" in w for w in packet["warnings"])
@@ -71,7 +71,7 @@ def test_export_obsidian_builds_linked_vault(tmp_path):
     all_text = "\n".join(p.read_text(encoding="utf-8") for p in out.rglob("*.md"))
     assert "[[" in all_text and "]]" in all_text
     # Proposed records are labeled as unreviewed in the vault.
-    assert "Proposed" in all_text
+    assert "Draft" in all_text
 
 
 def test_decision_comment_extracts_and_proposes(tmp_path):

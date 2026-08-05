@@ -2,12 +2,15 @@
 id: DEC-0100
 type: decision
 title: Revoke sessions on password change
-status: accepted
+status: stable
 date: 2026-07-31
 targets:
 - src/session.ts
 constraints: []
 supersedes: []
+verified:
+  - by: human:maintainer
+    at: "2026-07-31T00:00:00Z"
 ---
 
 ## Context

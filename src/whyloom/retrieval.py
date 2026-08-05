@@ -9,7 +9,9 @@ from .store import GraphStore
 # Record types that can govern implementation intent.
 GOVERNING_TYPES = frozenset({"Decision", "Constraint", "Architecture", "Incident"})
 # Statuses that make a governing record authoritative (vs proposed).
-ACCEPTED_STATUSES = frozenset({"accepted", "implemented"})
+# A record governs when its lifecycle is authoritative. Includes the OKF value
+# (stable) and the legacy whyloom values it maps from.
+ACCEPTED_STATUSES = frozenset({"stable", "accepted", "implemented"})
 
 EDGE_WEIGHTS = {
     "APPLIES_TO": 1.0,
@@ -57,7 +59,7 @@ def traverse(store: GraphStore, seeds: list[dict], max_depth: int = 2, max_items
         item["distance"] = depth
         item["via"] = via
         status = item.get("data", {}).get("status")
-        authority = 1.2 if status in {"accepted", "implemented"} else 1.0
+        authority = 1.2 if status in ACCEPTED_STATUSES else 1.0
         item["score"] = round(authority * strength, 4)
         seen[node["id"]] = item
         if depth >= max_depth:
@@ -86,9 +88,13 @@ def traverse(store: GraphStore, seeds: list[dict], max_depth: int = 2, max_items
 
 
 def _looks_inferred(record: dict) -> bool:
-    """Heuristic: a record was likely written by an agent/inference rather than a
-    human. Human-authored records carry no machine confidence score and use plain
-    ids; inferred ones carry a confidence and often an INFERRED id."""
+    """Whether a record's content was produced by a non-human. Prefers the explicit
+    OKF `generated.by` (a human actor starts with `human:`); falls back to the
+    legacy signals (an INFERRED id or a machine confidence score) for records
+    written before OKF fields existed."""
+    generated = record.get("data", {}).get("generated")
+    if isinstance(generated, dict) and generated.get("by"):
+        return not str(generated["by"]).startswith("human:")
     if "INFERRED" in record.get("id", "").upper():
         return True
     return record.get("data", {}).get("confidence") is not None
@@ -134,7 +140,7 @@ def context_packet(store: GraphStore, task: str, max_depth: int = 2, max_items: 
     # Proposed records carry day-one rationale but are not yet trusted; surface
     # them separately so the caller sees the why without mistaking it for
     # authoritative intent.
-    proposed = [item for item in records if item.get("data", {}).get("status") == "proposed"]
+    proposed = [item for item in records if item.get("data", {}).get("status") in {"draft", "proposed"}]
     files = [item for item in items if item["type"] == "File"]
     communities = [item for item in items if item["type"] == "Community"]
     warnings: list[str] = []

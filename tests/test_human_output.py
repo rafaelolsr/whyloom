@@ -209,7 +209,7 @@ def test_reflect_command_accepts_positional_and_option(tmp_path):
     runner.invoke(app, ["index", "--root", str(tmp_path)])
 
     positional = runner.invoke(app, ["reflect", "added a thing", "--root", str(tmp_path), "--json"])
-    assert positional.exit_code == 0 and '"status": "proposed"' in positional.stdout
+    assert positional.exit_code == 0 and '"status": "draft"' in positional.stdout
 
     option = runner.invoke(app, ["reflect", "--task-summary", "alias works", "--root", str(tmp_path), "--json"])
     assert option.exit_code == 0

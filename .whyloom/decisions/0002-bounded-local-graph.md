@@ -2,13 +2,16 @@
 id: DEC-0002
 type: decision
 title: Retrieve through a bounded local graph
-status: accepted
+status: stable
 date: 2026-07-16
 targets:
   - src/whyloom/retrieval.py
   - src/whyloom/indexer.py
 constraints: []
 supersedes: []
+verified:
+  - by: human:rafael
+    at: "2026-08-04T00:00:00Z"
 ---
 
 ## Decision

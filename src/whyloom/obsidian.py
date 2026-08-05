@@ -63,8 +63,8 @@ def export_obsidian(store: GraphStore, out_dir: Path) -> dict:
         lines = [f"# {node.get('label') or node['id']}", "", " ".join(tags), ""]
         if node.get("path"):
             lines += [f"**Path:** `{node['path']}`", ""]
-        if status == "proposed":
-            lines += ["> [!warning] Proposed — unreviewed rationale, not yet authoritative.", ""]
+        if status in {"draft", "proposed"}:
+            lines += ["> [!warning] Draft — unreviewed rationale, not yet authoritative.", ""]
 
         links = outgoing.get(node["id"], [])
         if links:

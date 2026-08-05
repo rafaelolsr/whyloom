@@ -12,7 +12,7 @@ from .codegraph import source_hash as compute_source_hash
 from .config import DEFAULT_CONFIG, resolve_repository_path
 from .indexer import discover_code_paths, index_project
 from .migrations import INDEX_FORMAT_VERSION
-from .models import Diagnostic
+from .models import Diagnostic, RecordStatus
 from .records import discover_records
 from .store import CorruptIndexError, GraphStore
 
@@ -146,7 +146,7 @@ def propose_from_rationale(root: Path, config: dict, *, limit: int = 50) -> dict
                 "id": f"PROP-RATIONALE-{slug[:40]}",
                 "type": "decision",
                 "title": f"Recorded rationale in {path}: {headline}",
-                "status": "proposed",
+                "status": "draft",
                 "date": date.today().isoformat(),
                 "targets": [path],
                 "constraints": [],
@@ -189,7 +189,51 @@ _ID_LINE = re.compile(r"^id:\s*(\S+)", re.MULTILINE)
 _CONFIDENCE_LINE = re.compile(r"^confidence:.*\n", re.MULTILINE)
 
 
-def accept_records(root: Path, config: dict, *, ids: list[str] | None = None, all_proposed: bool = False) -> dict:
+def _human_verifier() -> str:
+    """The OKF actor id for the current human reviewer (`human:<os-user>`)."""
+    import getpass
+
+    try:
+        user = getpass.getuser()
+    except Exception:  # pragma: no cover - environments without a resolvable user
+        user = "unknown"
+    return f"human:{user}"
+
+
+def _append_verified_block(text: str, verifier: str, at: str) -> str:
+    """Append a `verified` frontmatter entry inside the YAML block, before its
+    closing `---`. If a `verified:` key already exists it appends a list item;
+    otherwise it inserts a new `verified:` list. Deterministic, order-preserving."""
+    lines = text.splitlines(keepends=True)
+    # Find the closing '---' of the frontmatter (second '---' line).
+    fences = [i for i, line in enumerate(lines) if line.strip() == "---"]
+    if len(fences) < 2:
+        return text
+    close = fences[1]
+    # Quote the timestamp so YAML keeps it a string (an unquoted ISO datetime is
+    # parsed as a native datetime, which the string-typed model field rejects).
+    entry = [f"  - by: {verifier}\n", f'    at: "{at}"\n']
+    for i in range(fences[0] + 1, close):
+        if lines[i].startswith("verified:"):
+            # Insert list items right after the existing key.
+            insert_at = i + 1
+            while insert_at < close and lines[insert_at].startswith(("  -", "    ")):
+                insert_at += 1
+            lines[insert_at:insert_at] = entry
+            return "".join(lines)
+    lines[close:close] = ["verified:\n", *entry]
+    return "".join(lines)
+
+
+def accept_records(
+    root: Path,
+    config: dict,
+    *,
+    ids: list[str] | None = None,
+    all_proposed: bool = False,
+    verifier: str | None = None,
+    at: str | None = None,
+) -> dict:
     """Flip proposed records to accepted — the sanctioned way a human confirms
     review from the CLI. Only ``status`` changes; the record file is otherwise
     preserved. Bulk by default (``all_proposed``) so accepting many records is one
@@ -224,17 +268,19 @@ def accept_records(root: Path, config: dict, *, ids: list[str] | None = None, al
             continue
         # This id was matched to a file — never report it "not found" later.
         wanted.discard(record_id.upper())
-        if current_status == "accepted":
+        if current_status in {"stable", "accepted", "implemented"}:
             skipped.append({"id": record_id, "reason": "already accepted"})
             continue
-        if current_status != "proposed":
-            skipped.append({"id": record_id, "reason": f"status is '{current_status}', not proposed"})
+        if current_status not in {"draft", "proposed"}:
+            skipped.append({"id": record_id, "reason": f"status is '{current_status}', not draft"})
             continue
-        updated = _STATUS_LINE.sub(r"\1accepted", text, count=1)
-        # Human acceptance is the review gate: drop the machine-confidence line so
-        # the accepted record reads as human-owned and no longer trips the
-        # inferred-without-review guard (TRUST001).
+        # Acceptance is a human verification event: flip the lifecycle to the OKF
+        # authoritative value (stable) and record WHO verified and WHEN. The human
+        # verified[] entry — not the status alone — is the review gate TRUST001
+        # checks. Drop the machine confidence: the human's judgment supersedes it.
+        updated = _STATUS_LINE.sub(r"\1stable", text, count=1)
         updated = _CONFIDENCE_LINE.sub("", updated, count=1)
+        updated = _append_verified_block(updated, verifier or _human_verifier(), at or datetime.now(UTC).isoformat())
         path.write_text(updated, encoding="utf-8")
         accepted.append(record_id)
 
@@ -337,7 +383,7 @@ DECISION_TEMPLATE = """---
 id: DEC-XXXX
 type: decision
 title: Short decision title
-status: proposed
+status: draft
 date: {date}
 targets: []
 constraints: []
@@ -369,7 +415,7 @@ CONSTRAINT_TEMPLATE = """---
 id: CON-XXXX
 type: constraint
 title: Short constraint title
-status: proposed
+status: draft
 date: {date}
 targets: []
 constraints: []
@@ -445,14 +491,24 @@ def validate_project(root: Path, config: dict) -> dict:
                 diagnostics.append(Diagnostic(code="LINK002", severity="error", message=f"record reference does not exist: {reference}", path=record.path.as_posix()))
         if record.id in record.supersedes:
             diagnostics.append(Diagnostic(code="LIFE001", severity="error", message="record cannot supersede itself", path=record.path.as_posix()))
-        # Trust gate: a record still carrying a machine-confidence score has not
-        # passed human review — accepting it strips that score (see accept_records).
-        # So a confidence-bearing record marked accepted/implemented reached an
-        # authoritative status without the gate, the one thing whyloom prevents.
-        # The id (e.g. ARC-INFERRED-001) records who *drafted* it, not whether a
-        # human reviewed it, so it must not gate acceptance on its own.
-        if record.confidence is not None and record.status.value in {"accepted", "implemented"}:
-            diagnostics.append(Diagnostic(code="TRUST001", severity="error", message=f"record is '{record.status.value}' but still carries a machine-confidence score; accept it through review (which clears confidence) rather than editing status directly", path=record.path.as_posix()))
+        # Trust gate (OKF-exact): a governing record must carry a human verified[]
+        # entry. If it is authoritative (stable/accepted) but no human has verified
+        # it, it reached authority without review — the one thing whyloom prevents.
+        # This replaces the old confidence/INFERRED-id heuristic with the explicit
+        # OKF signal; `accept_records` writes the verifier when a human accepts.
+        if record.okf_status() in {RecordStatus.STABLE} and not record.human_verified():
+            diagnostics.append(
+                Diagnostic(
+                    code="TRUST001",
+                    severity="error",
+                    message=(
+                        f"record is authoritative (status '{record.status.value}') but has no human "
+                        "verified[] entry; accept it through review (whyloom accept) rather than "
+                        "setting the status directly"
+                    ),
+                    path=record.path.as_posix(),
+                )
+            )
 
     supersession_graph = {record.id: record.supersedes for record in records}
 
@@ -646,7 +702,7 @@ def reflect_project(
         "id": proposal_id,
         "type": "decision",
         "title": f"Review learning from: {task_summary[:72]}",
-        "status": "proposed",
+        "status": "draft",
         "date": date.today().isoformat(),
         "targets": changed_paths,
         "constraints": [],
@@ -678,7 +734,7 @@ def reflect_project(
     path.write_text(body, encoding="utf-8")
     return {
         "proposal": path.relative_to(root).as_posix(),
-        "status": "proposed",
+        "status": "draft",
         "changed_paths": changed_paths,
         "agent_brief": {
             "task_summary": task_summary.strip(),
@@ -686,7 +742,7 @@ def reflect_project(
             "sections_to_complete": ["Decision", "Rationale", "Alternatives", "Consequences", "Open questions"],
             "instruction": (
                 "Fill each marked section from the task summary, changed files, and symbols. "
-                "This proposal stays status: proposed until a human accepts it in review."
+                "This proposal stays status: draft until a human verifies it in review."
             ),
         },
         "requires_review": True,
