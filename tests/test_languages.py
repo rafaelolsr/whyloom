@@ -240,6 +240,29 @@ def test_tree_sitter_degrades_without_grammar(tmp_path):
 
 
 @pytest.mark.skipif(not _grammar_available(), reason="tree-sitter TypeScript grammar not installed")
+def test_mjs_module_level_call_does_not_crash(tmp_path):
+    # Dogfooding regression: an ESM .mjs file with a top-level (module-scope) call
+    # crashed extraction with KeyError('calls') — the call's enclosing parent was
+    # the File node, which has no "calls" list. Such calls are skipped, not fatal.
+    (tmp_path / "app.mjs").write_text(
+        "import { boot } from './boot.mjs'\n\n"
+        "boot()  // module-level call, no enclosing function\n\n"
+        "export function run() {\n  return boot()\n}\n",
+        encoding="utf-8",
+    )
+    result = index_project(tmp_path, DEFAULT_CONFIG)
+    assert result["indexed"]
+    assert "app.mjs" in result["changed"]
+    with GraphStore(tmp_path / ".whyloom" / "cache" / "graph.sqlite", create=False) as store:
+        symbols = {
+            row["label"]
+            for row in store.connection.execute(
+                "SELECT label FROM nodes WHERE source_path = 'app.mjs' AND type = 'Symbol'"
+            )
+        }
+    assert "run" in symbols  # the .mjs file indexed as JavaScript
+
+
 def test_typescript_extraction_end_to_end(tmp_path):
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "auth.ts").write_text(TS_SOURCE, encoding="utf-8")
