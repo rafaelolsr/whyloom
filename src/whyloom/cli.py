@@ -72,10 +72,7 @@ def _human_lines(p: dict[str, Any]) -> list[str] | None:  # noqa: C901 - a flat 
 
     # doctor.
     if "checks" in p and "ready" in p:
-        out.append("✓ Ready" if p["ready"] else "✗ Not ready")
-        for c in p["checks"]:
-            out.append(f"  {'✓' if c['ok'] else '✗'} {c['name']}: {c['detail']}")
-        return out
+        return _doctor_lines(p)
 
     # onboard.
     if "onboarded" in p:
@@ -163,12 +160,7 @@ def _human_lines(p: dict[str, Any]) -> list[str] | None:  # noqa: C901 - a flat 
 
     # learnings.
     if "uncovered_count" in p:
-        out.append(f"Proposals pending: {p.get('proposal_count', 0)}  ·  Uncovered source files: {p['uncovered_count']}")
-        for f in p.get("uncovered", [])[:10]:
-            out.append(f"  • {f}")
-        if p.get("next_action"):
-            out.append(p["next_action"])
-        return out
+        return _learnings_lines(p)
 
     # usage.
     if "total_queries" in p:
@@ -335,6 +327,55 @@ def _impact_lines(p: dict[str, Any]) -> list[str]:
         out.append(f"  {recs} governing record(s) — a decision constrains this; check before changing.")
     else:
         out.append("  No governing decision recorded — change is unconstrained by project memory.")
+    return out
+
+
+def _doctor_lines(p: dict[str, Any]) -> list[str]:
+    """Render `doctor` as a checklist that ends with what it means: a plain verdict
+    the reader can act on, not just a row of ticks."""
+    out: list[str] = ["✓ Ready — Whyloom can answer questions about this repo." if p["ready"]
+                      else "✗ Not ready — fix the ✗ items below before querying."]
+    for c in p["checks"]:
+        detail = c["detail"]
+        # "0 records" is the normal day-zero state, not a problem — say so.
+        if c["name"] == "validation" and detail.strip().startswith("0 "):
+            detail = "no records yet (the graph still works; add rationale with reflect/accept)"
+        out.append(f"  {'✓' if c['ok'] else '✗'} {c['name']}: {detail}")
+    if p["ready"]:
+        out.append("  Try: whyloom context \"<a task>\"  ·  whyloom impact <file>")
+    return out
+
+
+def _learnings_lines(p: dict[str, Any]) -> list[str]:
+    """Render `learnings` honestly: the actionable item is proposals to review;
+    uncovered files are a normal backdrop for any real codebase, not a to-do list
+    of 1000+ problems. Frame them as coverage, shown as a small sample."""
+    proposals = p.get("proposal_count", 0)
+    uncovered = p.get("uncovered_count", 0)
+    changed_only = p.get("changed_only", False)
+    out: list[str] = []
+
+    if proposals:
+        out.append(f"To review: {proposals} proposed record(s) awaiting your acceptance.")
+        out.append("  Read them in .whyloom/proposals/, then: whyloom accept <id>  (or --all)")
+    else:
+        out.append("To review: nothing — no proposals are pending.")
+
+    out.append("")
+    if changed_only:
+        # After work: these are the files you touched that have no recorded why.
+        if uncovered:
+            out.append(f"Rationale gaps in what you changed: {uncovered} file(s) with no recorded 'why'.")
+            for f in p.get("uncovered", [])[:10]:
+                out.append(f"  {f}")
+            out.append("  Capture the ones that made a real decision: whyloom reflect \"<what and why>\"")
+        else:
+            out.append("No rationale gaps in your changes — nothing to capture.")
+    else:
+        # Whole-repo view: uncovered is expected and not a task list.
+        out.append(f"Coverage: {uncovered} source file(s) have no recorded rationale yet.")
+        out.append("  This is normal — rationale accrues as decisions get made, not all at once.")
+        out.append("  After real work, run: whyloom learnings --changed  (gaps in what you touched)")
     return out
 
 
