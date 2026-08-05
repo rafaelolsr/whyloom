@@ -469,11 +469,14 @@ class TreeSitterAdapter:
             for name, specifier in _parse_es_import(text):
                 alias_sink.append((name, specifier, rel))
         elif node_type in grammar.call_nodes and current_parent in node_by_id:
-            callee = self._call_target(node, source)
-            if callee:
-                node_by_id[current_parent].data["calls"].append(
-                    {"target": callee, "line": node.start_point[0] + 1}
-                )
+            # Only a symbol node carries a "calls" list; a top-level call whose
+            # enclosing parent is the File node (module-level code, common in ESM
+            # .mjs) has nowhere to attach, so skip it rather than KeyError.
+            parent_calls = node_by_id[current_parent].data.get("calls")
+            if parent_calls is not None:
+                callee = self._call_target(node, source)
+                if callee:
+                    parent_calls.append({"target": callee, "line": node.start_point[0] + 1})
         for child in node.children:
             self._walk(child, source, grammar, rel, digest, file_id, nodes, edges, imports, node_by_id, alias_sink, current_parent)
 
