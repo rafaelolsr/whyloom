@@ -55,7 +55,28 @@ def _rerank_by_term_coverage(results: list[dict], terms: list[str]) -> list[dict
         return sum(1 for term in term_set if term in tokens)
 
     # Sort by (most terms covered, then best bm25). Stable, fully deterministic.
-    return sorted(results, key=lambda item: (-coverage(item), item.get("lexical_rank", 0.0)))
+    ranked = sorted(results, key=lambda item: (-coverage(item), item.get("lexical_rank", 0.0)))
+    return _diversify_by_file(ranked)
+
+
+def _diversify_by_file(ranked: list[dict], per_file_cap: int = 3) -> list[dict]:
+    """Prevent one file from monopolizing the results. A file with many matching
+    symbols (e.g. conversation_store.py) otherwise fills every slot, burying an
+    equally relevant file (state/store.py) that has fewer symbols. Emit up to
+    per_file_cap results per file in ranked order, then a second pass for the
+    overflow — so distinct files surface before deep symbol lists. Deterministic:
+    preserves relative order within each file."""
+    def file_of(item: dict) -> str:
+        return item.get("path") or item.get("source_path") or item.get("label", "")
+
+    seen: dict[str, int] = {}
+    kept: list[dict] = []
+    overflow: list[dict] = []
+    for item in ranked:
+        key = file_of(item)
+        seen[key] = seen.get(key, 0) + 1
+        (kept if seen[key] <= per_file_cap else overflow).append(item)
+    return kept + overflow
 
 
 class GraphStore:
@@ -193,7 +214,11 @@ class GraphStore:
                 "SELECT n.*, bm25(documents, 0.0, 0.4, 5.0, 0.3) AS lexical_rank "
                 "FROM documents JOIN nodes n ON n.id = documents.node_id "
                 "WHERE documents MATCH ? ORDER BY lexical_rank LIMIT ?",
-                (fts_query, max(limit * 4, 40)),
+                # Over-fetch deeply: one symbol-dense file can otherwise fill the
+                # whole pool, keeping a sparse-but-relevant file (fewer symbols)
+                # out entirely so diversification has nothing to surface. FTS is
+                # cheap, so a large pool is affordable.
+                (fts_query, max(limit * 20, 200)),
             ).fetchall()
         except sqlite3.OperationalError:
             pattern = f"%{query}%"

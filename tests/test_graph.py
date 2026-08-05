@@ -86,6 +86,29 @@ def test_search_ranks_path_term_coverage_over_frequency(tmp_path):
     assert "catalog/orchestrator/pipeline.py" in top_path
 
 
+def test_search_diversifies_so_a_sparse_relevant_file_surfaces(tmp_path):
+    # Benchmark regression (T3): a symbol-dense file monopolized every result
+    # slot, burying an equally relevant file with fewer symbols. Deep over-fetch
+    # + per-file diversification must surface both.
+    from whyloom.operations import init_project
+
+    root = tmp_path / "repo"
+    (root / "state").mkdir(parents=True)
+    # Dense file: many symbols all matching "store".
+    dense = "class ChatStore:\n" + "".join(f"    def op{i}(self):\n        return {i}\n" for i in range(20))
+    (root / "state" / "conversation_store.py").write_text(dense, encoding="utf-8")
+    # Sparse file: the class the query really wants, few symbols.
+    (root / "state" / "store.py").write_text(
+        "class ConversationStore:\n    def save(self):\n        return 1\n", encoding="utf-8"
+    )
+    init_project(root)
+    index_project(root, DEFAULT_CONFIG)
+    with GraphStore(root / DEFAULT_CONFIG["database"]) as store:
+        paths = {r.get("path") or r.get("source_path") for r in store.search("conversation store", 10)}
+    assert any(p and "state/store.py" in p for p in paths)
+    assert any(p and "conversation_store.py" in p for p in paths)
+
+
 def test_find_path_between_file_and_record(tmp_path):
     root = tmp_path / "repo"
     shutil.copytree(FIXTURE, root)
