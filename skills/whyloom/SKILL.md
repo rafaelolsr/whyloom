@@ -27,7 +27,11 @@ Do not use the ongoing reflection loop to fabricate an initial project history.
 2. Resolve the onboarding lifecycle above.
 3. Run `whyloom doctor --json` to identify missing configuration, index, or invalid records.
 4. Run `whyloom index --json` when the index may be absent or stale.
-5. Run `whyloom context "<current task>" --compact --json`.
+5. Run `whyloom context "<current task>" --compact --json`. Retrieval is lexical,
+   not semantic: phrase the query in the codebase's own vocabulary — likely class,
+   module, and function names (nouns) — rather than a natural-language sentence.
+   For "how are conversations persisted?" query `"conversation store persistence"`,
+   not the question verbatim. If results look off, retry with different code terms.
 6. Read the returned governing records, symbols, relationships, communities, and source paths.
 7. Also read `proposed_records`: on a freshly onboarded codebase most rationale is
    still `proposed` (unreviewed). Use it as day-one evidence — it is a real, cited

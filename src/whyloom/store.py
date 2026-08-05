@@ -12,16 +12,24 @@ from .models import GraphEdge, GraphNode
 
 QUERY_STOPWORDS = {
     "affected",
+    "are",
     "change",
     "does",
     "explain",
     "exists",
     "from",
+    "how",
     "into",
-    "that",
+    "are",
     "the",
+    "that",
     "this",
+    "used",
+    "using",
     "what",
+    "when",
+    "where",
+    "which",
     "why",
     "without",
 }
@@ -31,10 +39,39 @@ class CorruptIndexError(RuntimeError):
     """Raised when the SQLite index cannot be opened because it is malformed."""
 
 
+# Common English inflectional suffixes, longest-first, so a natural-language query
+# term reduces to a stem that FTS prefix-matches the code's vocabulary
+# ("persisted"/"persistence" -> "persist", matching ConversationStore.persist).
+_SUFFIXES = ("ization", "izations", "ations", "ation", "ing", "ed", "es", "s", "ly", "ence", "ance", "ment")
+
+
+def _stem(term: str) -> str:
+    """Deterministically strip one inflectional suffix, keeping a stem of >=3
+    chars. Not a full stemmer — just enough that verb/noun forms of the same
+    concept collapse to a shared prefix for FTS prefix matching."""
+    for suffix in _SUFFIXES:
+        if term.endswith(suffix) and len(term) - len(suffix) >= 3:
+            return term[: -len(suffix)]
+    return term
+
+
 def _query_terms(query: str) -> list[str]:
     expanded = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", query).replace("_", "-")
     terms = re.findall(r"[a-zA-Z0-9]+", expanded.casefold())
     return list(dict.fromkeys(term for term in terms if len(term) > 1 and term not in QUERY_STOPWORDS))
+
+
+def _fts_query(terms: list[str]) -> str:
+    """Build an FTS MATCH expression that prefix-matches on stems, so
+    "persisted" finds "persist"/"persistence" without embeddings or re-indexing.
+    Each term contributes both its literal and its stemmed prefix form."""
+    parts: list[str] = []
+    for term in terms:
+        stem = _stem(term)
+        parts.append(f'"{term}"')
+        if stem != term and len(stem) >= 3:
+            parts.append(f'"{stem}"*')
+    return " OR ".join(dict.fromkeys(parts))
 
 
 def _rerank_by_term_coverage(results: list[dict], terms: list[str]) -> list[dict]:
@@ -48,11 +85,16 @@ def _rerank_by_term_coverage(results: list[dict], terms: list[str]) -> list[dict
         return results
     term_set = list(dict.fromkeys(terms))
 
+    stems = {term: _stem(term) for term in term_set}
+
     def coverage(item: dict) -> int:
         identity = f"{item.get('path') or ''} {item.get('label') or ''}"
         identity = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", identity).replace("_", "-").replace("/", " ").casefold()
         tokens = set(re.findall(r"[a-z0-9]+", identity))
-        return sum(1 for term in term_set if term in tokens)
+        token_stems = {_stem(t) for t in tokens}
+        # Credit a term when its literal or stem appears in the identity's tokens
+        # or their stems, so "persisted" matches a "persist"/"persistence" symbol.
+        return sum(1 for term in term_set if term in tokens or stems[term] in token_stems)
 
     # Sort by (most terms covered, then best bm25). Stable, fully deterministic.
     ranked = sorted(results, key=lambda item: (-coverage(item), item.get("lexical_rank", 0.0)))
@@ -202,7 +244,7 @@ class GraphStore:
         terms = _query_terms(query)
         if not terms:
             return []
-        fts_query = " OR ".join(f'"{term}"' for term in terms)
+        fts_query = _fts_query(terms)
         try:
             # Weight name/path matches far above body matches: a file whose path or
             # symbol whose name contains the query terms is a better hit than a file
