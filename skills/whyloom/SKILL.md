@@ -53,6 +53,11 @@ decision. A proposed record is evidence to verify, not authority to cite.
   result. It returns the exact callers and affected symbols — do not reconstruct
   them by grepping or reading files. Also run it before changing a governing
   record or an implementation with linked dependents.
+- For a **"how does X work" / execution flow / walkthrough** question, run
+  `whyloom flow <symbol-or-file> --json` first. It returns the ordered call
+  skeleton (the sequence of project calls the entry makes, one level deep) so you
+  can narrate the behavior from the flow and read only the few cited files it
+  names, not the whole subsystem.
 - Run `whyloom explain <path-or-node-id> --json` to explain what a target does,
   why it exists, and where rationale is missing.
 - Run `whyloom validate --json` when records or linked paths changed. Stop on
