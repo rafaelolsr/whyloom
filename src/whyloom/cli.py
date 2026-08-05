@@ -310,16 +310,28 @@ def _impact_lines(p: dict[str, Any]) -> list[str]:
     """Render `impact` answer-first: what a change here touches, in plain words."""
     c = p["counts"]
     target = p.get("target", "")
-    callers = [x["label"] for x in p["affected"].get("downstream_callers", [])]
+
+    def is_test(path: str | None) -> bool:
+        path = (path or "").casefold()
+        return path.startswith(("tests/", "test/")) or "/tests/" in path or path.endswith("_test.py")
+
+    all_callers = p["affected"].get("downstream_callers", [])
+    prod = [x for x in all_callers if not is_test(x.get("path"))]
+    tests = [x for x in all_callers if is_test(x.get("path"))]
     syms = [s["name"] for s in p["affected"].get("symbols", [])]
     out: list[str] = [f"Changing {target} affects:"]
-    if callers:
-        out.append(f"  {len(callers)} caller(s) that depend on it — review these first:")
-        out += [f"    {name}" for name in callers[:8]]
-        if len(callers) > 8:
-            out.append(f"    … and {len(callers) - 8} more")
-    else:
+    if prod:
+        # Production dependents matter most — review these before changing.
+        out.append(f"  {len(prod)} production caller(s) — review these first:")
+        out += [f"    {x['label']}  ({x.get('path')})" for x in prod[:8]]
+        if len(prod) > 8:
+            out.append(f"    … and {len(prod) - 8} more")
+    elif not tests:
         out.append("  No callers found — nothing else references it, so a change here is contained.")
+    else:
+        out.append("  No production callers — only tests reference it.")
+    if tests:
+        out.append(f"  {len(tests)} test(s) exercise it — expect these to need updating.")
     if syms:
         out.append(f"  {len(syms)} symbol(s) defined here (functions/classes in this file).")
     recs = c.get("records", 0)

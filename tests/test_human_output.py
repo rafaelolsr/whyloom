@@ -130,7 +130,7 @@ def test_impact_reads_as_plain_language():
     }
     text = render_human(payload)
     assert "Changing src/workflows/router.py affects" in text
-    assert "2 caller(s)" in text and "StarbaseWorkflow.__init__" in text
+    assert "2 production caller(s)" in text and "StarbaseWorkflow.__init__" in text
     assert "No governing decision recorded" in text
 
 
