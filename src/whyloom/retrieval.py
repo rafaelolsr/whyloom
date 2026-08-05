@@ -275,6 +275,11 @@ def impact_analysis(store: GraphStore, target: str, max_depth: int = 2, max_item
     # Anything with a dependency edge pointing AT the surface is affected.
     affected: dict[str, dict] = {}
     records: list[dict] = []
+    # Source paths on the change surface — a dependent inside one of these files is
+    # an internal self-reference (e.g. a method calling a sibling method), not the
+    # external impact of changing the file, so it must not be counted as a caller.
+    surface_paths = {v.get("source_path") or v.get("path") for v in surface.values()}
+    surface_paths.discard(None)
     for sid, snode in surface.items():
         for neighbor in store.neighbors(sid):
             edge, other = neighbor["edge"], neighbor["node"]
@@ -282,6 +287,8 @@ def impact_analysis(store: GraphStore, target: str, max_depth: int = 2, max_item
                 continue  # only edges pointing INTO the surface (dependents)
             if other["id"] in surface or other["id"] in affected:
                 continue
+            if (other.get("source_path") or other.get("path")) in surface_paths:
+                continue  # internal self-reference, not external impact
             entry = {**other, "via": edge, "distance": 1}
             if other["type"] in {"Decision", "Constraint", "Architecture", "Incident"}:
                 records.append(entry)
