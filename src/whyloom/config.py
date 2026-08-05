@@ -12,6 +12,8 @@ DEFAULT_INCLUDE_PATTERNS = [
     "**/*.tsx",
     "**/*.js",
     "**/*.jsx",
+    "**/*.mjs",
+    "**/*.cjs",
     "**/*.go",
     "**/*.rs",
     "**/*.java",

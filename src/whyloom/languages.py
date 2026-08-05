@@ -261,6 +261,8 @@ TREE_SITTER_GRAMMARS: dict[str, TreeSitterGrammar] = {
             (".tsx", "typescript", "tree_sitter_typescript"),
             (".js", "javascript", "tree_sitter_javascript"),
             (".jsx", "javascript", "tree_sitter_javascript"),
+            (".mjs", "javascript", "tree_sitter_javascript"),
+            (".cjs", "javascript", "tree_sitter_javascript"),
         )
     },
     ".go": TreeSitterGrammar(
