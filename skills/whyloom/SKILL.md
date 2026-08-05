@@ -48,10 +48,13 @@ decision. A proposed record is evidence to verify, not authority to cite.
 
 ## Explain or assess impact
 
+- For any **impact / "what breaks if I change this" / callers / dependents**
+  question, run `whyloom impact <path-or-symbol> --json` and answer from its
+  result. It returns the exact callers and affected symbols — do not reconstruct
+  them by grepping or reading files. Also run it before changing a governing
+  record or an implementation with linked dependents.
 - Run `whyloom explain <path-or-node-id> --json` to explain what a target does,
   why it exists, and where rationale is missing.
-- Run `whyloom impact <path-or-record-id> --json` before changing a governing
-  record or implementation with linked dependents.
 - Run `whyloom validate --json` when records or linked paths changed. Stop on
   validation errors.
 
