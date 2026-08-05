@@ -18,7 +18,11 @@ class RecordType(StrEnum):
 
 
 class RecordStatus(StrEnum):
+    # OKF lifecycle values (canonical).
     DRAFT = "draft"
+    STABLE = "stable"
+    DEPRECATED = "deprecated"
+    # Legacy whyloom values, still parsed and mapped forward for compatibility.
     PROPOSED = "proposed"
     ACCEPTED = "accepted"
     IMPLEMENTED = "implemented"
@@ -27,13 +31,70 @@ class RecordStatus(StrEnum):
     EXPIRED = "expired"
 
 
-GOVERNING_STATUSES = {RecordStatus.ACCEPTED, RecordStatus.IMPLEMENTED}
+# A record is authoritative (governs) when its lifecycle is stable/accepted.
+GOVERNING_STATUSES = {RecordStatus.STABLE, RecordStatus.ACCEPTED, RecordStatus.IMPLEMENTED}
+
+# Legacy → OKF status mapping. Applied when reading and when writing forward.
+LEGACY_STATUS_MAP = {
+    RecordStatus.PROPOSED: RecordStatus.DRAFT,
+    RecordStatus.ACCEPTED: RecordStatus.STABLE,
+    RecordStatus.IMPLEMENTED: RecordStatus.STABLE,
+    RecordStatus.SUPERSEDED: RecordStatus.DEPRECATED,
+    RecordStatus.REJECTED: RecordStatus.DEPRECATED,
+    RecordStatus.EXPIRED: RecordStatus.DEPRECATED,
+}
+
+
+def okf_status(status: RecordStatus) -> RecordStatus:
+    """Normalize any lifecycle value to its OKF canonical form."""
+    return LEGACY_STATUS_MAP.get(status, status)
 
 
 class InferenceConfidence(StrEnum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
+
+
+def _validate_actor(value: str) -> str:
+    """OKF actor convention: `<producer>/<version>` for an agent, `human:<id>` for
+    a person, `process:<id>` for an automated process. We accept any non-empty
+    string but normalize whitespace, so producers are not blocked by a strict
+    grammar while the common forms round-trip cleanly."""
+    normalized = " ".join(value.split())
+    if not normalized:
+        raise ValueError("actor must not be empty")
+    return normalized
+
+
+class Generated(BaseModel):
+    """OKF: how the current content was produced."""
+
+    by: str
+    at: str | None = None
+
+    @field_validator("by")
+    @classmethod
+    def _actor(cls, value: str) -> str:
+        return _validate_actor(value)
+
+    def is_human(self) -> bool:
+        return self.by.startswith("human:")
+
+
+class Verified(BaseModel):
+    """OKF: a single confirmation that the content was reviewed."""
+
+    by: str
+    at: str | None = None
+
+    @field_validator("by")
+    @classmethod
+    def _actor(cls, value: str) -> str:
+        return _validate_actor(value)
+
+    def is_human(self) -> bool:
+        return self.by.startswith("human:")
 
 
 class RecordEvidence(BaseModel):
@@ -64,9 +125,35 @@ class ProjectRecord(BaseModel):
     confidence: InferenceConfidence | None = None
     evidence: list[RecordEvidence] = Field(default_factory=list)
     open_questions: list[str] = Field(default_factory=list)
+    # OKF trust family: who produced this content, and who has verified it.
+    generated: Generated | None = None
+    verified: list[Verified] = Field(default_factory=list)
     body: str = ""
     path: Path
     source_hash: str
+
+    @field_validator("verified", mode="before")
+    @classmethod
+    def _coerce_verified(cls, value: Any) -> Any:
+        # OKF allows a single verifier as one {by, at} mapping without a list dash.
+        if isinstance(value, dict):
+            return [value]
+        return value
+
+    def okf_status(self) -> RecordStatus:
+        return okf_status(self.status)
+
+    def human_verified(self) -> bool:
+        """True when at least one human has verified this record — the review gate."""
+        return any(v.is_human() for v in self.verified)
+
+    def looks_agent_generated(self) -> bool:
+        """Whether the current content was produced by a non-human. Prefers the
+        explicit OKF `generated.by`; falls back to the legacy signals (an INFERRED
+        id or a machine confidence score) for records written before OKF fields."""
+        if self.generated is not None:
+            return not self.generated.is_human()
+        return "INFERRED" in self.id.upper() or self.confidence is not None
 
     @field_validator("id")
     @classmethod

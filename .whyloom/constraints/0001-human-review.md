@@ -2,12 +2,15 @@
 id: CON-0001
 type: constraint
 title: Require human review before rationale becomes authoritative
-status: accepted
+status: stable
 date: 2026-07-16
 targets:
   - src/whyloom/operations.py
 constraints: []
 supersedes: []
+verified:
+  - by: human:rafael
+    at: "2026-08-04T00:00:00Z"
 ---
 
 ## Constraint

@@ -2,7 +2,7 @@
 id: DEC-0006
 type: decision
 title: Cache-trust guarantees — staleness, locking, corruption detection
-status: accepted
+status: stable
 date: 2026-07-31
 targets:
 - src/whyloom/store.py
@@ -11,6 +11,9 @@ targets:
 constraints:
 - CON-0001
 supersedes: []
+verified:
+  - by: human:rafael
+    at: "2026-08-04T00:00:00Z"
 ---
 
 ## Context

@@ -64,6 +64,9 @@ def _record_graph(
             "confidence": record.confidence.value if record.confidence else None,
             "evidence": [item.model_dump() for item in record.evidence],
             "open_questions": record.open_questions,
+            # OKF trust family, so retrieval can read provenance/verification.
+            "generated": record.generated.model_dump() if record.generated else None,
+            "verified": [item.model_dump() for item in record.verified],
         },
     )
     edges: list[GraphEdge] = []

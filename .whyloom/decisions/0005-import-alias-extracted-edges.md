@@ -2,12 +2,15 @@
 id: DEC-0005
 type: decision
 title: Import-alias tracking promotes ES/TS cross-file edges to EXTRACTED
-status: accepted
+status: stable
 date: 2026-07-31
 targets:
 - src/whyloom/languages.py
 constraints: []
 supersedes: []
+verified:
+  - by: human:rafael
+    at: "2026-08-04T00:00:00Z"
 ---
 
 ## Context

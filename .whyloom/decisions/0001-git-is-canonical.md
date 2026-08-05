@@ -2,7 +2,7 @@
 id: DEC-0001
 type: decision
 title: Keep project intent canonical in Git
-status: accepted
+status: stable
 date: 2026-07-16
 targets:
   - src/whyloom/records.py
@@ -10,6 +10,9 @@ targets:
 constraints:
   - CON-0001
 supersedes: []
+verified:
+  - by: human:rafael
+    at: "2026-08-04T00:00:00Z"
 ---
 
 ## Decision

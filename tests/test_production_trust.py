@@ -204,43 +204,46 @@ def test_validate_allows_confidence_record_that_stays_proposed(tmp_path):
     from whyloom.operations import validate_project
 
     root = _repo(tmp_path)
-    _write_record(root, "0001-shell.md", record_id="ARC-INFERRED-001", status="proposed", confidence="high")
+    _write_record(root, "0001-shell.md", record_id="ARC-INFERRED-001", status="draft", confidence="high")
     result = validate_project(root, DEFAULT_CONFIG)
     assert not any(e["code"] == "TRUST001" for e in result["errors"])
 
 
-def test_validate_allows_inferred_id_accepted_without_confidence(tmp_path):
-    # The INFERRED id records who DRAFTED the record (an agent); it must not gate
-    # acceptance. A human-accepted record has its confidence stripped and is then
-    # authoritative even though its id still says INFERRED.
+def test_validate_flags_stable_record_without_human_verifier(tmp_path):
+    # OKF-exact trust gate: a record that is authoritative (stable) but carries no
+    # human verified[] entry reached authority without review. Setting status
+    # directly (bypassing `accept`) is exactly this case.
     from whyloom.operations import validate_project
 
     root = _repo(tmp_path)
-    _write_record(root, "0001-shell.md", record_id="ARC-INFERRED-001", status="accepted")
+    _write_record(root, "0001-shell.md", record_id="ARC-INFERRED-001", status="stable")
     result = validate_project(root, DEFAULT_CONFIG)
-    assert not any(e["code"] == "TRUST001" for e in result["errors"])
+    assert not result["valid"]
+    assert any(e["code"] == "TRUST001" for e in result["errors"])
 
 
-def test_accept_strips_confidence_so_validate_passes(tmp_path):
-    # Accepting an inferred proposal is the human gate: it must clear the machine
-    # confidence so the record no longer trips TRUST001. Regression: accept flipped
-    # status but left confidence, making the accepted record permanently invalid.
+def test_accept_records_human_verifier_so_validate_passes(tmp_path):
+    # Accepting a draft is the human verification event: it flips to stable AND
+    # records a human verified[] entry, which is what clears TRUST001. An INFERRED
+    # id no longer matters — the verifier does.
     from whyloom.operations import accept_records, validate_project
 
     root = _repo(tmp_path)
     (root / ".whyloom" / "proposals").mkdir(parents=True, exist_ok=True)
     (root / ".whyloom" / "proposals" / "shell.md").write_text(
-        "---\nid: ARC-INFERRED-001\ntype: architecture\ntitle: Shell\nstatus: proposed\n"
-        "date: 2026-07-31\ntargets:\n- src/auth.py\nconstraints: []\nsupersedes: []\nconfidence: high\n---\n\n"
+        "---\nid: ARC-INFERRED-001\ntype: architecture\ntitle: Shell\nstatus: draft\n"
+        "date: 2026-07-31\ntargets:\n- src/auth.py\nconstraints: []\nsupersedes: []\nconfidence: high\n"
+        "generated:\n  by: agent/model\n  at: \"2026-07-31T00:00:00Z\"\n---\n\n"
         "## Observation\nx\n## Inference\nx\n## Consequences\nx\n",
         encoding="utf-8",
     )
     index_project(root, DEFAULT_CONFIG)
-    result = accept_records(root, DEFAULT_CONFIG, ids=["ARC-INFERRED-001"])
+    result = accept_records(root, DEFAULT_CONFIG, ids=["ARC-INFERRED-001"], verifier="human:tester", at="2026-08-04T00:00:00Z")
     assert result["accepted_count"] == 1
 
     text = (root / ".whyloom" / "proposals" / "shell.md").read_text(encoding="utf-8")
-    assert "status: accepted" in text
+    assert "status: stable" in text
+    assert "by: human:tester" in text
     assert "confidence:" not in text
 
     validation = validate_project(root, DEFAULT_CONFIG)

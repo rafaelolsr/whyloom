@@ -20,19 +20,20 @@ def _repo_with_proposal(tmp_path):
     return root
 
 
-def test_accept_all_flips_status_and_preserves_file(tmp_path):
+def test_accept_all_flips_status_and_records_verifier(tmp_path):
     root = _repo_with_proposal(tmp_path)
     proposal = next(root.glob(".whyloom/proposals/*.md"))
     before = proposal.read_text(encoding="utf-8")
-    assert "status: proposed" in before
+    assert "status: draft" in before
 
-    result = accept_records(root, DEFAULT_CONFIG, all_proposed=True)
+    result = accept_records(root, DEFAULT_CONFIG, all_proposed=True, verifier="human:tester", at="2026-08-04T00:00:00Z")
     assert result["accepted_count"] == 1
     after = proposal.read_text(encoding="utf-8")
-    assert "status: accepted" in after
-    # Only status changed; id/title/body preserved.
+    # Lifecycle flips to the OKF authoritative value and a human verifier is recorded.
+    assert "status: stable" in after
+    assert "by: human:tester" in after
+    # Body and identity preserved.
     assert "id:" in after and "## Rationale" in after
-    assert before.replace("status: proposed", "status: accepted") == after
 
 
 def test_accept_by_id_and_idempotent(tmp_path):

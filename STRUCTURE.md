@@ -110,18 +110,31 @@ provenance, confidence, and last-indexed hash. Explicit record links outrank inf
 
 Example decision:
 
+Record frontmatter aligns with the Open Knowledge Format (OKF): `status` uses
+`draft` | `stable` | `deprecated`; `generated: {by, at}` records who produced the
+content and `verified: [{by, at}]` records each human/process confirmation, using
+the OKF actor convention (`human:<id>`, `<producer>/<version>`, `process:<id>`).
+A record governs only when a human `verified[]` entry exists; `whyloom accept`
+writes it. Legacy `proposed`/`accepted` still parse and map forward.
+
 ```markdown
 ---
 id: DEC-0007
 type: decision
 title: Keep access tokens out of browser storage
-status: accepted
+status: stable
 date: 2026-07-16
 targets:
   - src/auth/token_service.py
 constraints:
   - CON-0002
 supersedes: []
+generated:
+  by: reference_agent/model
+  at: "2026-07-16T09:00:00Z"
+verified:
+  - by: human:maintainer
+    at: "2026-07-16T10:00:00Z"
 ---
 
 ## Context

@@ -20,9 +20,9 @@ def test_validation_and_reflection(tmp_path):
         "diff --git a/src/sample/auth.py b/src/sample/auth.py\n+++ b/src/sample/auth.py\n",
     )
     path = root / proposal["proposal"]
-    assert proposal["status"] == "proposed"
+    assert proposal["status"] == "draft"
     assert proposal["requires_review"]
-    assert "status: proposed" in path.read_text(encoding="utf-8")
+    assert "status: draft" in path.read_text(encoding="utf-8")
 
 
 def test_validation_fails_for_broken_target(tmp_path):

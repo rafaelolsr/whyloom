@@ -50,7 +50,7 @@ def build_map_payload(store: GraphStore, max_nodes: int = 600) -> dict:
             "type": node["type"],
             "label": node["label"][:80],
             "authoritative": node["type"] in _AUTHORITATIVE
-            and node.get("data", {}).get("status") in {"accepted", "implemented"},
+            and node.get("data", {}).get("status") in {"stable", "accepted", "implemented"},
         }
         for node in kept
     ]
