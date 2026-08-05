@@ -11,8 +11,9 @@ records over guesses from code shape or chat history.
 ## Resolve onboarding first
 
 1. Run `whyloom onboard --status --json`.
-2. If status is `pending`, invoke `$whyloom-bootstrap` immediately. Do not wait
-   for the user to know or repeat a bootstrap prompt.
+2. If status is `pending`, invoke `$whyloom-bootstrap` immediately for **broad
+   coverage** — an architecture-role record for every significant subsystem, not a
+   token few. Do not wait for the user to know or repeat a bootstrap prompt.
 3. If status is `not_started` and the repository has no reliable Whyloom
    records, run `whyloom onboard --json`, then invoke `$whyloom-bootstrap`.
 4. Return to the current task only after onboarding is completed or after
