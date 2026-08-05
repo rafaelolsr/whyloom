@@ -1,0 +1,20 @@
+[
+  {
+    "id": "zr-pipeline-frequency-trap",
+    "task": "catalog ingestion pipeline",
+    "expected_records": [],
+    "expected_targets": ["catalog/orchestrator/pipeline.py"]
+  },
+  {
+    "id": "zr-persistence-diversity-trap",
+    "task": "conversation persistence store",
+    "expected_records": [],
+    "expected_targets": ["state/store.py"]
+  },
+  {
+    "id": "zr-router-locate",
+    "task": "workflow router",
+    "expected_records": [],
+    "expected_targets": ["workflows/router.py"]
+  }
+]
