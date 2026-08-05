@@ -61,27 +61,61 @@ The evidence bar is not lower for role records — it is *different*: structure
 must demonstrably support the role claim. What stays forbidden is inventing a
 *rationale* (a why) that no evidence supports.
 
-## Proposal contract
+## Record contract — grounding decides trust, not authorship (DEC-0008)
 
-Give every inferred record:
+The two record kinds are trusted differently, because one is provable from code
+and the other is not.
 
-- `status: proposed`
-- `confidence: low|medium|high`
-- `evidence` entries with `kind`, `source`, and a factual `summary`
-- `open_questions` for uncertainty that evidence cannot resolve
-- repository-relative `targets` when the claim applies to concrete files
+**Architecture / structural-role records — may govern without a human.** These
+state what the code *is* (boundaries, ownership, what calls what) and are provable
+from evidence. When every claim cites resolvable code, emit them ready to govern:
 
-Use a stable ID such as `DEC-INFERRED-001`, `CON-INFERRED-001`, or `ARC-INFERRED-001`.
+- `type: architecture`
+- `status: stable`
+- `verified:` a single `- by: process:bootstrap` entry with an ISO `at:` timestamp
+- `generated:` `{ by: "<your agent id>", at: <timestamp> }`
+- repository-relative `targets` that resolve, and `evidence` entries naming real files
+- body: `## Role` / `## Responsibilities` / `## Boundaries`, each claim traceable to
+  the cited code
 
-Separate observation from inference in the body. State what the evidence demonstrates, what is inferred, what alternatives remain plausible, and what a reviewer must confirm.
+A grounded structural record passes `TRUST001` (process-verified) and `TRUST002`
+(grounded), so it governs immediately — no human step. An ungrounded one is
+rejected, so never emit a structural claim you cannot cite.
+
+**Decision / constraint records — the WHY — never assert it; ask it.** Why a
+choice was made is *not* in the code; inferring it is fabricating history, which
+`TRUST002`/`TRUST001` reject. Do **not** emit `type: decision` rationale from
+onboarding. Instead, when the code shows a shape whose reason is unrecorded,
+capture it as an **open question on the structural record**:
+
+> `## Open questions`
+> `- The code shows tokens are stored httpOnly (src/auth.py:rotate). The *reason*
+>   is unrecorded — likely XSS mitigation, framework default, or convention.
+>   Human: which was it?`
+
+This surfaces the decision for a human to confirm cheaply, without asserting a
+guess. A real decision record is created later, by a human or via `reflect` on an
+actual change — always with a human verifier.
+
+Use a stable ID such as `ARC-INFERRED-001` for structural records.
+
+Separate observation from inference in the body. State what the evidence
+demonstrates and what a reader must still confirm.
 
 ## Guardrails
 
-- Never change an inferred record to `accepted` or `implemented`.
+- A structural (architecture) record may be `stable` + `process:bootstrap`
+  verified ONLY when every claim cites resolvable code. Never mark a
+  decision/constraint (a why) stable — those require a human verifier.
 - Never manufacture a *rationale* (a claimed why) from code shape, dependency
   choice, or naming alone. Describing a subsystem's structural *role* from cited
   imports/containment/callers is not manufacturing rationale — it is the intended
-  content of an architecture-role record.
+  content of an architecture-role record. An unrecorded *why* is an open question,
+  never an asserted decision record.
+- Never treat Git commit subjects or comments as unquestionable truth.
+- Never copy secrets, credentials, large source excerpts, or private data into records.
+- Never emit a record — even structural — whose claims you cannot cite in code;
+  it fails validation (TRUST002). Record an open question instead.
 - Never treat Git commit subjects or comments as unquestionable truth.
 - Never copy secrets, credentials, large source excerpts, or private data into records.
 - Never create a proposal when even the structural evidence is too weak to support
