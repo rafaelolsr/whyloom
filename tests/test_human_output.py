@@ -83,7 +83,7 @@ def test_record_sections_collapses_placeholder_only_body():
     assert sections["decision"] == ""
 
 
-def test_context_lists_records_and_proposed():
+def test_context_teaches_as_it_answers():
     payload = {
         "task": "auth",
         "governing_records": [],
@@ -92,10 +92,46 @@ def test_context_lists_records_and_proposed():
         "warnings": ["review before trusting"],
     }
     text = render_human(payload)
+    # Answer-first: the relevant code is labeled and leads.
     assert "Task: auth" in text
-    assert "Proposed (unreviewed) (1):" in text
-    assert "PROP-1" in text
+    assert "Where to look" in text and "src/auth.py" in text
+    # The rationale slot is explained, not a bare count; proposed records are shown
+    # as an unreviewed starting point with the accept next-step.
+    assert "proposed" in text.casefold() and "PROP-1" in text
+    assert "whyloom accept" in text
     assert "⚠ review before trusting" in text
+
+
+def test_context_explains_empty_rationale_with_next_step():
+    # The common day-zero case (no records) must read as guidance, not an error.
+    payload = {
+        "task": "catalog pipeline",
+        "governing_records": [],
+        "proposed_records": [],
+        "files": ["catalog/orchestrator/pipeline.py"],
+        "warnings": ["No accepted decision or constraint was found for this task."],
+    }
+    text = render_human(payload)
+    assert "Where to look" in text
+    assert "none yet" in text and "whyloom reflect" in text
+    # The bare "No accepted decision" warning is absorbed into the explanation,
+    # not repeated as a scary trailing ⚠.
+    assert "⚠ No accepted decision" not in text
+
+
+def test_impact_reads_as_plain_language():
+    payload = {
+        "target": "src/workflows/router.py",
+        "counts": {"records": 0, "symbols": 50, "callers": 2},
+        "affected": {
+            "downstream_callers": [{"label": "StarbaseWorkflow.__init__"}, {"label": "ProposalOrchestrator.__init__"}],
+            "symbols": [{"name": "WorkflowRouter"}],
+        },
+    }
+    text = render_human(payload)
+    assert "Changing src/workflows/router.py affects" in text
+    assert "2 caller(s)" in text and "StarbaseWorkflow.__init__" in text
+    assert "No governing decision recorded" in text
 
 
 def test_unknown_shape_falls_back_to_json():
