@@ -162,6 +162,39 @@ def test_flow_traces_ordered_execution(tmp_path):
     assert prepare["path"] and "steps.py" in prepare["path"]
 
 
+def test_flow_on_class_name_resolves_to_orchestrating_method(tmp_path):
+    # Dogfooding bug: `flow AdvisorExecutor` resolved to a fuzzy keyword match
+    # (a test class) instead of the class named that, then showed no calls because
+    # a class node makes none — its methods do. An exact class-name target must
+    # start the trace from the class's most-calling method.
+    from whyloom.operations import init_project
+    from whyloom.retrieval import flow_trace
+
+    root = tmp_path / "repo"
+    (root / "src").mkdir(parents=True)
+    (root / "src" / "svc.py").write_text(
+        "def load():\n    return 1\ndef save():\n    return 2\n\n"
+        "class Orchestrator:\n"
+        "    def __init__(self):\n        self.x = 1\n"
+        "    def run(self):\n        load()\n        self.step()\n        save()\n"
+        "    def step(self):\n        return 3\n",
+        encoding="utf-8",
+    )
+    # A decoy the old fuzzy resolver might have picked on the word 'orchestrat'.
+    (root / "src" / "test_orchestration_notes.py").write_text(
+        "class TestOrchestratorNotes:\n    def test_it(self):\n        return 1\n", encoding="utf-8"
+    )
+    init_project(root)
+    index_project(root, DEFAULT_CONFIG)
+    with GraphStore(root / DEFAULT_CONFIG["database"]) as store:
+        result = flow_trace(store, "Orchestrator")
+    assert result["found"]
+    # Resolved to the class's orchestrating method, not the decoy test class.
+    assert "Orchestrator.run" in result["entry"]
+    names = [c["name"] for c in result["flow"]["calls"]]
+    assert names == ["load", "step", "save"]
+
+
 def test_find_path_between_file_and_record(tmp_path):
     root = tmp_path / "repo"
     shutil.copytree(FIXTURE, root)
