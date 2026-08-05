@@ -131,6 +131,37 @@ def test_search_stems_natural_language_query(tmp_path):
     assert any(p and "state/store.py" in p for p in paths)
 
 
+def test_flow_traces_ordered_execution(tmp_path):
+    # `flow` answers "how does it work" structurally: the ordered call skeleton
+    # from an entry, resolved to real symbols, deterministic (no LLM).
+    from whyloom.operations import init_project
+    from whyloom.retrieval import flow_trace
+
+    root = tmp_path / "repo"
+    (root / "src").mkdir(parents=True)
+    (root / "src" / "steps.py").write_text(
+        "def prepare():\n    return 1\ndef finish():\n    return 2\n", encoding="utf-8"
+    )
+    (root / "src" / "run.py").write_text(
+        "from src.steps import prepare, finish\n\n"
+        "def orchestrate():\n    prepare()\n    x = compute()\n    finish()\n    return x\n\n"
+        "def compute():\n    return 3\n",
+        encoding="utf-8",
+    )
+    init_project(root)
+    index_project(root, DEFAULT_CONFIG)
+    with GraphStore(root / DEFAULT_CONFIG["database"]) as store:
+        result = flow_trace(store, "src/run.py")
+    assert result["found"]
+    # The behavioral entry (most calls) is orchestrate, and its calls are in order.
+    assert "orchestrate" in result["entry"]
+    names = [c["name"] for c in result["flow"]["calls"]]
+    assert names == ["prepare", "compute", "finish"]
+    # Calls into another file resolve to that file's path.
+    prepare = next(c for c in result["flow"]["calls"] if c["name"] == "prepare")
+    assert prepare["path"] and "steps.py" in prepare["path"]
+
+
 def test_find_path_between_file_and_record(tmp_path):
     root = tmp_path / "repo"
     shutil.copytree(FIXTURE, root)

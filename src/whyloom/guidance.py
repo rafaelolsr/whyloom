@@ -35,6 +35,9 @@ fewer tokens. Match the question to the command:
 - **"What breaks if I change X?" / impact / callers / dependents** →
   `whyloom impact <path-or-symbol> --json`. This is the authoritative answer for
   impact questions; do not reconstruct callers by grepping.
+- **"How does X work?" / execution flow / what calls what in order** →
+  `whyloom flow <path-or-symbol> --json` for the ordered call skeleton, then read
+  only the cited files to narrate behavior — don't grep to reconstruct the flow.
 - **"Why does X exist?" / what is this / its rationale** →
   `whyloom explain <path> --json`.
 - **"Where is the code for <task>?" / find relevant files** →
