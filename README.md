@@ -60,6 +60,36 @@ Local rationale graph
 Task-specific context for humans and agents
 ```
 
+## How the value arrives
+
+Whyloom is two layers, and they land at different times.
+
+**Day zero — the deterministic graph.** Point Whyloom at a repository and index
+it. `context`, `explain`, and `impact` work immediately, with **zero records and
+no LLM**: ranked files and symbols for a task, the blast radius of a change, and
+the structural role of any file. This layer is reproducible and fits in CI —
+the same repository always yields the same graph. You get useful, auditable code
+retrieval before writing a single record.
+
+**Over time — the governed rationale.** The *why* is layered on top and is never
+assumed. It arrives two ways, and both stay gated:
+
+- **Captured from real work.** As decisions are made, `reflect` and `propose`
+  turn them into `proposed` records — during the pull request that made the
+  change, where the reasoning is fresh.
+- **Inferred on request.** For an existing codebase, an installed agent skill can
+  read the code and *draft* inferred rationale across its subsystems. These also
+  land as `proposed`.
+
+Either way, an inferred or drafted record is **quarantined as unreviewed until a
+human accepts it**. Retrieval surfaces proposed records too — clearly labeled —
+so agents get a cited starting point without mistaking a guess for a decision.
+Only accepted records govern.
+
+That gate is the point. Generating a map and guessing intent is the easy part;
+Whyloom's distinguishing property is that intent becomes *authoritative* only
+after human sign-off, so the memory a team relies on is one it actually reviewed.
+
 ## Quickstart
 
 The minimal setup to get Whyloom working in a project — run these in order:
