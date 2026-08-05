@@ -224,13 +224,24 @@ def compact_context_packet(packet: dict) -> dict:
 
 
 def _resolve_node(store: GraphStore, target: str) -> dict | None:
-    """Resolve a user-supplied target to a graph node by id, file path, or
-    lexical search — the same resolution explain and impact use."""
+    """Resolve a user-supplied target to a graph node by id, file path, exact
+    symbol name, then lexical search — the resolution explain/impact/flow share.
+    An exact symbol-name match must win before fuzzy search, so `AdvisorExecutor`
+    resolves to the symbol literally named that, not a keyword-ranked lookalike."""
     node = store.node(target) or store.node(f"file:{target}")
-    if node is None:
-        matches = store.search(target, 1)
-        node = matches[0] if matches else None
-    return node
+    if node is not None:
+        return node
+    # Exact symbol-label match (case-insensitive), preferring a class/definition
+    # (id ends with the bare name) over a method (id ends with Class.name).
+    rows = store.connection.execute(
+        "SELECT id, type, label, path, source_path, source_hash, data FROM nodes "
+        "WHERE type = 'Symbol' AND lower(label) = lower(?) ORDER BY length(id)",
+        (target,),
+    ).fetchall()
+    if rows:
+        return store._node_dict(rows[0])
+    matches = store.search(target, 1)
+    return matches[0] if matches else None
 
 
 def impact_analysis(store: GraphStore, target: str, max_depth: int = 2, max_items: int = 20) -> dict:
@@ -498,16 +509,27 @@ def flow_trace(store: GraphStore, target: str, max_depth: int = 2, max_steps: in
     if node is None:
         return {"target": target, "found": False, "steps": [], "warnings": ["Target not found in the graph."]}
 
-    # If the entry is a file, start from the symbol that makes the most calls
-    # (usually the orchestrating method), so `flow <file>` is meaningful too.
+    # A file or a class has no calls of its own — its methods do. Start from the
+    # orchestrating method (the one making the most meaningful project calls) so
+    # `flow <file>` and `flow <ClassName>` are both meaningful.
     entry = node
-    if node["type"] == "File":
+    entry_data = node.get("data") or {}
+    entry_calls = entry_data.get("calls", []) if isinstance(entry_data, dict) else []
+    needs_method_entry = node["type"] == "File" or (node["type"] == "Symbol" and not entry_calls)
+    if needs_method_entry:
         import json as _json
 
         path = node.get("path") or node.get("source_path")
-        candidates = store.connection.execute(
-            "SELECT id, label, data FROM nodes WHERE type = 'Symbol' AND source_path = ?", (path,)
-        ).fetchall()
+        if node["type"] == "File":
+            candidates = store.connection.execute(
+                "SELECT id, label, data FROM nodes WHERE type = 'Symbol' AND source_path = ?", (path,)
+            ).fetchall()
+        else:
+            # Methods of the class: labels shaped "ClassName.method" in the same file.
+            candidates = store.connection.execute(
+                "SELECT id, label, data FROM nodes WHERE type = 'Symbol' AND source_path = ? AND label LIKE ?",
+                (path, f"{node['label']}.%"),
+            ).fetchall()
         # The behavioral entry is the orchestrating method — the one making the
         # most meaningful project calls. Skip dunders (__init__ wires deps, not
         # behavior). Simple and robust; the caller can also pass a symbol directly.
