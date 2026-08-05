@@ -97,3 +97,14 @@ def test_guidance_block_has_sentinels():
     block = guidance_block()
     assert block.startswith(BEGIN)
     assert block.rstrip().endswith(END)
+
+
+def test_guidance_routes_impact_questions_to_impact_command():
+    # Dogfooding finding: an agent answered an impact question with grep because
+    # the guidance led with `context` and buried `impact`. The block must route
+    # each question type to its command, with impact explicit.
+    block = guidance_block()
+    assert "whyloom impact" in block
+    assert "callers" in block.casefold() or "dependents" in block.casefold()
+    # And steer away from grepping the answer.
+    assert "grep" in block.casefold()

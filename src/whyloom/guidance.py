@@ -28,17 +28,27 @@ MEMORY_FILES = {
 
 _BLOCK_BODY = """## Project memory (Whyloom)
 
-This repository uses Whyloom for governed project memory. Follow this loop:
+This repository uses Whyloom. Prefer these commands over grep/manual file reading
+for the questions they answer — Whyloom returns exact, cited results and costs far
+fewer tokens. Match the question to the command:
 
-- **Before** changing rationale-sensitive or unfamiliar code, run
-  `whyloom context "<task>" --compact --json` and prefer cited records over
-  guessing intent from code shape.
-- Use `whyloom explain <path>` and `whyloom path <a> <b>` to trace why code
-  exists and how entities connect.
-- **After** completing work, run `whyloom learnings --changed --json`; for
-  significant uncovered changes run `whyloom reflect --task-summary "<what and why>"`
-  and complete the proposal. Never accept a record without human review.
-- Treat `INFERRED`/`AMBIGUOUS` edges as prompts to verify against the cited files.
+- **"What breaks if I change X?" / impact / callers / dependents** →
+  `whyloom impact <path-or-symbol> --json`. This is the authoritative answer for
+  impact questions; do not reconstruct callers by grepping.
+- **"Why does X exist?" / what is this / its rationale** →
+  `whyloom explain <path> --json`.
+- **"Where is the code for <task>?" / find relevant files** →
+  `whyloom context "<task>" --compact --json`. Query in the codebase's own
+  vocabulary (class/module/function names), not a full sentence.
+- **How are two things connected?** → `whyloom path "<A>" "<B>" --json`.
+
+Use the result as the answer; only read the cited files to verify a specific
+claim, not to redo the search. Treat `INFERRED`/`AMBIGUOUS` edges as prompts to
+verify against those files.
+
+**After** completing work, run `whyloom learnings --changed --json`; for significant
+uncovered changes run `whyloom reflect "<what and why>" --json` and complete the
+proposal. Never accept a record without human review.
 """
 
 
