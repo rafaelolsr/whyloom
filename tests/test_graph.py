@@ -109,6 +109,28 @@ def test_search_diversifies_so_a_sparse_relevant_file_surfaces(tmp_path):
     assert any(p and "conversation_store.py" in p for p in paths)
 
 
+def test_search_stems_natural_language_query(tmp_path):
+    # A prose query ("how are records persisted") must find a symbol named for the
+    # concept ("persist"), via deterministic stemming + FTS prefix matching — no
+    # embeddings. Closes the phrasing-sensitivity gap for human-typed questions.
+    from whyloom.operations import init_project
+    from whyloom.store import _stem
+
+    assert _stem("persisted") == "persist"
+    assert _stem("persistence") == "persist"
+
+    root = tmp_path / "repo"
+    (root / "state").mkdir(parents=True)
+    (root / "state" / "store.py").write_text(
+        "class ConversationStore:\n    def persist(self, turn):\n        return 1\n", encoding="utf-8"
+    )
+    init_project(root)
+    index_project(root, DEFAULT_CONFIG)
+    with GraphStore(root / DEFAULT_CONFIG["database"]) as store:
+        paths = {r.get("path") or r.get("source_path") for r in store.search("how are conversations persisted", 8)}
+    assert any(p and "state/store.py" in p for p in paths)
+
+
 def test_find_path_between_file_and_record(tmp_path):
     root = tmp_path / "repo"
     shutil.copytree(FIXTURE, root)
