@@ -245,34 +245,60 @@ def impact_analysis(store: GraphStore, target: str, max_depth: int = 2, max_item
     if node is None:
         return {"target": target, "found": False, "affected": {}, "evidence": [], "warnings": ["Target not found in the graph."]}
 
-    items = traverse(store, [node], max_depth=max_depth, max_items=max_items)
-    seen_ids = {item["id"] for item in items}
+    # Impact must be PRECISE, not lexical. A weighted graph walk (traverse) wanders
+    # across loosely-related nodes via any edge and inflates "1 real caller" into
+    # dozens of keyword-adjacent false positives. Instead follow only true
+    # reverse-dependency edges into the target and the symbols it contains:
+    # something CALLS/IMPORTS/INHERITS/REFERENCES/CONSTRAINED_BY it, or a governing
+    # record APPLIES_TO it.
+    DEPENDENCY_EDGES = {"CALLS", "IMPORTS", "INHERITS", "REFERENCES", "CONSTRAINED_BY", "APPLIES_TO", "IMPLEMENTS"}
 
-    # Expand affected files into their contained symbols, and pull direct callers
-    # of affected symbols, so impact names concrete code rather than whole files.
-    expanded: list[dict] = []
-    for item in items:
-        if item["type"] not in {"File", "Symbol"}:
-            continue
-        for neighbor in store.neighbors(item["id"]):
+    # The change surface: the target plus the code it directly reaches.
+    surface: dict[str, dict] = {node["id"]: {**node, "distance": 0}}
+    if node["type"] in GOVERNING_TYPES:
+        # A record's change surface is the files/symbols it governs (APPLIES_TO/
+        # IMPLEMENTS), so impact on a decision names the code it constrains.
+        for neighbor in store.neighbors(node["id"]):
             edge, other = neighbor["edge"], neighbor["node"]
-            if other["id"] in seen_ids:
-                continue
-            # File -> contained Symbol, or Symbol <- CALLS (a downstream caller).
-            is_contained = edge["type"] == "CONTAINS" and other["type"] == "Symbol"
-            is_caller = edge["type"] == "CALLS" and edge["target"] == item["id"]
-            if is_contained or is_caller:
-                seen_ids.add(other["id"])
-                expanded.append({**other, "via": edge, "distance": item.get("distance", 0) + 1})
+            if edge["type"] in {"APPLIES_TO", "IMPLEMENTS"} and edge["source"] == node["id"]:
+                surface[other["id"]] = {**other, "via": edge, "distance": 1}
 
-    all_items = items + expanded
-    records = [i for i in all_items if i["type"] in {"Decision", "Constraint", "Architecture", "Incident"}]
-    files = [i for i in all_items if i["type"] == "File"]
-    symbols = [i for i in all_items if i["type"] == "Symbol"]
+    # Expand every file on the surface into the symbols it contains.
+    for sid in list(surface):
+        if surface[sid]["type"] != "File":
+            continue
+        for neighbor in store.neighbors(sid):
+            edge, other = neighbor["edge"], neighbor["node"]
+            if edge["type"] == "CONTAINS" and edge["source"] == sid and other["type"] == "Symbol" and other["id"] not in surface:
+                surface[other["id"]] = {**other, "distance": surface[sid]["distance"]}
+
+    # Anything with a dependency edge pointing AT the surface is affected.
+    affected: dict[str, dict] = {}
+    records: list[dict] = []
+    for sid, snode in surface.items():
+        for neighbor in store.neighbors(sid):
+            edge, other = neighbor["edge"], neighbor["node"]
+            if edge["type"] not in DEPENDENCY_EDGES or edge["target"] != sid:
+                continue  # only edges pointing INTO the surface (dependents)
+            if other["id"] in surface or other["id"] in affected:
+                continue
+            entry = {**other, "via": edge, "distance": 1}
+            if other["type"] in {"Decision", "Constraint", "Architecture", "Incident"}:
+                records.append(entry)
+            else:
+                affected[other["id"]] = entry
+
+    contained = [v for v in surface.values() if v["id"] != node["id"] and v["type"] == "Symbol"]
+    all_items = list(surface.values()) + list(affected.values()) + records
+    # Files affected: governed files on the surface (record target) + dependent files.
+    files = [v for v in surface.values() if v["id"] != node["id"] and v["type"] == "File"]
+    files += [i for i in affected.values() if i["type"] == "File"]
+    # Symbols on the change surface (contained) plus dependent symbols.
+    symbols = contained + [i for i in affected.values() if i["type"] == "Symbol"]
     callers = [
         {"id": i["id"], "label": i["label"], "path": i.get("path"), "via": (i.get("via") or {}).get("type")}
-        for i in symbols
-        if (i.get("via") or {}).get("type") == "CALLS"
+        for i in affected.values()
+        if i["type"] == "Symbol" and (i.get("via") or {}).get("type") in {"CALLS", "IMPORTS"}
     ]
 
     return {

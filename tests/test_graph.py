@@ -197,6 +197,31 @@ def test_index_context_and_explain(tmp_path):
     assert "evidence" not in compact
 
 
+def test_impact_reports_only_real_dependents_not_keyword_matches(tmp_path):
+    # Dogfooding bug: impact used a fuzzy graph walk that inflated "1 real caller"
+    # into dozens of keyword-adjacent false positives (44 vs 1 on a real .mjs repo).
+    # Guardrail that only true dependency edges count. (The full inflation needs
+    # corpus scale to reproduce; this locks in correct dependent/decoy behavior.)
+    from whyloom.operations import init_project
+    from whyloom.retrieval import impact_analysis
+
+    root = tmp_path / "repo"
+    (root / "src").mkdir(parents=True)
+    # The target and its one real caller.
+    (root / "src" / "adapter.py").write_text("def sync():\n    return 1\n", encoding="utf-8")
+    (root / "src" / "app.py").write_text("from src.adapter import sync\n\ndef run():\n    return sync()\n", encoding="utf-8")
+    # A decoy: mentions 'adapter'/'sync' by name but never imports the target.
+    (root / "src" / "notes.py").write_text("# adapter sync adapter sync\ndef describe_sync():\n    return 'adapter sync'\n", encoding="utf-8")
+    init_project(root)
+    index_project(root, DEFAULT_CONFIG)
+    with GraphStore(root / DEFAULT_CONFIG["database"]) as store:
+        result = impact_analysis(store, "src/adapter.py")
+    caller_paths = {c["path"] for c in result["affected"]["downstream_callers"]}
+    # The real caller is found; the keyword decoy is NOT reported as a dependent.
+    assert any(p and "app.py" in p for p in caller_paths)
+    assert not any(p and "notes.py" in p for p in caller_paths)
+
+
 def test_impact_analysis_expands_files_to_symbols(tmp_path):
     from whyloom.retrieval import impact_analysis
 
