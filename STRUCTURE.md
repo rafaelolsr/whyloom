@@ -66,9 +66,10 @@ target-project/
 
 The `.whyloom/` directory is the project-memory home. Records and templates are canonical and versioned; only `.whyloom/cache/` is generated locally and ignored by Git.
 
-Bootstrap output under `.whyloom/cache/` is disposable discovery evidence. The skill
-writes inferred knowledge only to `.whyloom/proposals/`, with explicit confidence,
-evidence references, open questions, and `status: proposed`.
+Bootstrap output under `.whyloom/cache/` is disposable discovery evidence. From it
+the skill writes **grounded structural records** — each claim cited to real code,
+so they govern on evidence (verified by `process:bootstrap`) — and captures any
+*why* the code does not record as an open question, never an asserted decision.
 
 `whyloom onboard` creates the pending request. Installed skills consume it,
 validate the resulting project memory, and close it with `whyloom onboard
@@ -114,8 +115,11 @@ Record frontmatter aligns with the Open Knowledge Format (OKF): `status` uses
 `draft` | `stable` | `deprecated`; `generated: {by, at}` records who produced the
 content and `verified: [{by, at}]` records each human/process confirmation, using
 the OKF actor convention (`human:<id>`, `<producer>/<version>`, `process:<id>`).
-A record governs only when a human `verified[]` entry exists; `whyloom accept`
-writes it. Legacy `proposed`/`accepted` still parse and map forward.
+A record governs by two rules: its claims must resolve to real code (`TRUST002`),
+and it must be verified — a grounded structural (`architecture`) record may be
+verified by a process and govern human-less, while a decision or constraint (a
+*why*) requires a human `verified[]` entry (`TRUST001`), which `whyloom accept`
+writes. Legacy `proposed`/`accepted` still parse and map forward.
 
 ```markdown
 ---
@@ -267,15 +271,15 @@ Installs or removes client-side Git hooks (`post-commit`, `post-merge`, `post-ch
 
 ### `whyloom accept <id>`
 
-Flips proposed records to accepted, changing only the `status` line and preserving the rest of the file. Accepts specific ids or `--all`. Optional: editing the record's status during a pull-request review is the primary, zero-setup human-review gate.
+Records a human verification: sets `status: stable` and appends a `verified[]` entry naming the human reviewer. Accepts specific ids or `--all`. Needed for a *decision's* why; a grounded structural record governs without it. Editing the record in a pull-request review does the same thing.
 
 ### `whyloom reflect`
 
-Uses an explicit task summary and Git diff to create proposal files. It never changes a record to accepted automatically.
+Uses a task summary and the diff to draft a rationale record whose every claim must cite the changed code; anything it cannot ground becomes an open question. It never marks a record authoritative on the agent's own authority.
 
 ### `whyloom learnings`
 
-Reports the state of the retro-feed loop: pending proposals awaiting human review and uncovered source files (language-source files with no `APPLIES_TO`, `IMPLEMENTS`, or `CONSTRAINED_BY` edge). `--changed` limits gaps to files changed since the last index, which is what an agent should reflect on after completing work.
+Reports the state of the capture loop: records awaiting a human's verification and uncovered source files (language-source files with no `APPLIES_TO`, `IMPLEMENTS`, or `CONSTRAINED_BY` edge). `--changed` limits gaps to files changed since the last index, which is what an agent should reflect on after completing work.
 
 ### `whyloom validate`
 
