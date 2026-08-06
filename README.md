@@ -23,7 +23,7 @@ Works with **Claude Code · Codex · GitHub Copilot · Agent Skills** — one de
 
 Whyloom is trusted project memory for a codebase. It builds a deterministic, multi-language knowledge graph of your files and symbols, then links that implementation to the decisions, constraints, rejected alternatives, and operational lessons that explain it — so humans and coding agents get fast, task-specific context they can audit and rely on.
 
-The graph is the engine; governed rationale is the point. Whyloom's defining feature is that nothing an LLM inferred becomes authoritative until a human accepts it in review — the map is generated automatically, but the *why* is trusted only after human sign-off. It runs on any folder and uses Git to enrich evidence when a repository is present, but Git is not required.
+The graph is the engine; governed rationale is the point. Whyloom's defining feature is that a record governs only when its claims are **grounded in verifiable code** — an inferred claim that resolves to nothing cannot become authoritative. Structural facts the code proves can govern automatically; the *why* behind a decision, which the code cannot prove, still requires a human. It runs on any folder and uses Git to enrich evidence when a repository is present, but Git is not required.
 
 ## The problem
 
@@ -71,24 +71,23 @@ the structural role of any file. This layer is reproducible and fits in CI —
 the same repository always yields the same graph. You get useful, auditable code
 retrieval before writing a single record.
 
-**Over time — the governed rationale.** The *why* is layered on top and is never
-assumed. It arrives two ways, and both stay gated:
+**Over time — the governed rationale.** The *why* is layered on top, and every
+claim is anchored in code. It arrives two ways:
 
-- **Captured from real work.** As decisions are made, `reflect` and `propose`
-  turn them into `proposed` records — during the pull request that made the
-  change, where the reasoning is fresh.
-- **Inferred on request.** For an existing codebase, an installed agent skill can
-  read the code and *draft* inferred rationale across its subsystems. These also
-  land as `proposed`.
+- **Inferred on request.** For an existing codebase, an installed agent skill
+  reads the code and writes **grounded structural records** — a subsystem's role,
+  boundaries, and relationships, each cited to real files. Because the code proves
+  them, they govern immediately, with no human step. Any *why* the code does not
+  record is surfaced as an open question, not asserted.
+- **Captured from real work.** As decisions are made, `whyloom reflect` turns them
+  into records during the pull request that made the change, while the reasoning
+  is fresh — the *why* here carries a human's verification.
 
-Either way, an inferred or drafted record is **quarantined as unreviewed until a
-human accepts it**. Retrieval surfaces proposed records too — clearly labeled —
-so agents get a cited starting point without mistaking a guess for a decision.
-Only accepted records govern.
-
-That gate is the point. Generating a map and guessing intent is the easy part;
-Whyloom's distinguishing property is that intent becomes *authoritative* only
-after human sign-off, so the memory a team relies on is one it actually reviewed.
+The distinguishing property is not "a human reviewed it" — it is that intent is
+**verifiably grounded in the code**. A fabricated rationale resolves to nothing
+and cannot govern; a structural fact the code proves governs on its own; and the
+*why* the code cannot prove is answered by a human, never guessed. The memory a
+team relies on is one whose every claim can be checked against the source.
 
 ## Quickstart
 
@@ -110,9 +109,9 @@ whyloom doctor                         # confirm the setup is ready (integrity, 
 ```
 
 Day one you already get a queryable graph, an HTML map, an Obsidian vault, and
-*proposed* rationale drafted from existing code comments — visible in `context`
-results but clearly marked unreviewed. Nothing an inference produced is treated
-as authoritative until you accept it.
+rationale drafted from existing code comments — surfaced in `context` results.
+A claim governs only where it resolves to real code; an inference that grounds in
+nothing is never treated as authoritative.
 
 `propose` drafts records from tagged comments (`WHY:`, `DECISION:`, `HACK:`).
 Rationale in non-Python files is only extracted when the matching tree-sitter
@@ -233,11 +232,12 @@ whyloom doctor
 - `export graphml` / `export svg` write the graph as GraphML (for Gephi, yEd, NetworkX) or a static SVG image — both deterministic.
 - `report` summarizes the graph: most-connected entities ("god nodes") and suggested starter questions, optionally to `GRAPH_REPORT.md`.
 - `watch` re-indexes automatically as source files change (poll-based; an alternative to the commit hook during active development).
-- `propose` drafts reviewable, proposed decision records from in-code `WHY`/`DECISION`/`HACK` comments so a freshly onboarded repo has queryable rationale on day one — never accepted automatically.
+- `flow` traces the ordered execution skeleton from an entry point — the call sequence that answers "how does this work", deterministically.
+- `propose` drafts decision records from in-code `WHY`/`DECISION`/`HACK` comments — the author's own words, captured for a human to confirm.
 - `hook install` adds a local Git post-commit hook so the graph stays fresh automatically; it works with any remote, including GitHub, GitLab, and Azure DevOps. Use `hook azure` for a server-side Azure Pipelines snippet.
-- `reflect` proposes new or updated records after work is completed.
-- `accept` flips proposed records to accepted from the CLI (bulk with `--all`) — optional; reviewing and editing the record file in a PR is the primary gate.
-- `learnings` reports pending proposals and rationale gaps (source files with no governing record) so the capture loop stays reliable; add `--changed` to scope it to recent work.
+- `reflect` drafts a rationale record after work is completed, requiring every claim to cite the changed code; anything it cannot ground becomes an open question.
+- `accept` records a human verification (bulk with `--all`) — needed for a *decision's* why; a grounded structural record governs without it.
+- `learnings` reports rationale gaps (source files with no governing record) so the capture loop stays reliable; add `--changed` to scope it to recent work.
 - `usage` reports how many queries the graph answered (per command) — concrete proof the agent is using the graph instead of grep.
 - `validate` detects broken links, stale records, and contradictory active constraints.
 - `doctor` verifies that configuration, records, index, and validation are ready.
@@ -253,8 +253,9 @@ whyloom onboard --root . --json
 This initializes and indexes the repository, writes a stratified evidence manifest
 and structural coverage ledger,
 and records a pending agent request under `.whyloom/cache/bootstrap/`. The
-installed Whyloom skills detect the request, inspect the evidence, and create
-proposed records with explicit confidence, citations, and open questions. They
+installed Whyloom skills detect the request, inspect the evidence, and write
+**grounded structural records** — each claim cited to real code, so they govern
+without a human — plus open questions for any *why* the code does not record. They
 then validate, re-index, and mark onboarding complete.
 
 Virtual environments and dependency caches—including named environments such as
@@ -269,19 +270,42 @@ Check the lifecycle at any time:
 whyloom onboard --status --root . --json
 ```
 
-Inferred rationale is never authoritative. A human must review it before changing its status to `accepted` or `implemented`.
+Inferred structural records govern only where their claims resolve to real code (`TRUST002`). Any *why* the code does not record is left as an open question for a human — never asserted as a decision.
 
 ## Trust model
 
-Whyloom separates implementation truth from project intent:
+A record governs by **two rules**:
 
-- code is the source of truth for implementation;
-- tests are the source of truth for observed behavior;
-- accepted project records are the source of truth for intent and rationale;
-- the generated index is a cache, never an authority;
-- agent-generated knowledge enters as a proposal and requires normal human review before becoming accepted truth.
+1. **Grounding.** Every claim must cite verifiable code — a `targets` path or an
+   `evidence` source that resolves to a real file or symbol. A governing record
+   that cites nothing checkable is invalid (`TRUST002`). Trust is *consistency
+   with the code*, not a signature — so a fabricated rationale, which resolves to
+   nothing, cannot govern.
 
-Records are Markdown files, so **the human-review gate is your normal pull-request review**: an agent proposes a record, you review the file in the PR, and flipping `status: proposed` to `accepted` is a one-line diff you approve — no separate step. `context` flags any accepted record that looks agent-authored (an inferred id or a machine confidence score) so unreviewed self-certification is visible. For convenience, `whyloom accept <id>` (or `--all`) flips records from the CLI in one action, but it is optional — editing the file in a review works the same.
+2. **Verification, by the right kind of author.** What the code *is* (a
+   subsystem's role, its boundaries, what calls what) is provable from evidence,
+   so a **grounded structural record may be verified by a process** (e.g. an
+   onboarding agent) and govern with no human step. What the code *is for* — the
+   *why* a decision was made — is **not** in the code; inferring it is guesswork,
+   so a decision or constraint requires a **human** verifier (`TRUST001`).
+
+The practical consequence:
+
+| Record | Anchored in | Who verifies it |
+|---|---|---|
+| Architecture / role — *what the code is* | structure (imports, calls, containment) | a process or a human — governs on evidence |
+| Decision / constraint — *why it is so* | a documented choice, or a human | a human, always |
+
+An agent can therefore onboard a codebase and make its **structure** governing on
+its own, while the **why** it cannot ground is surfaced as an open question for a
+human to answer — never asserted. The other truths are unchanged: code is the
+source of truth for implementation, tests for behavior, and the generated index
+is a cache, never an authority.
+
+Records are Markdown, so review is your normal pull-request review. `whyloom
+reflect` captures rationale from real work; `whyloom accept` records a human
+verification from the CLI when you want it — but a grounded structural record
+does not wait on it.
 
 Whyloom stores concise rationale and evidence, not private model chain-of-thought.
 
