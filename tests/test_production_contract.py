@@ -17,9 +17,11 @@ FIXTURE = Path(__file__).parent / "fixtures" / "sample_repo"
 
 
 def test_version_flag_works_without_command():
+    from whyloom import __version__
+
     result = CliRunner().invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert result.stdout.strip() == "0.7.0"
+    assert result.stdout.strip() == __version__
 
 
 def test_config_rejects_paths_outside_repository():
