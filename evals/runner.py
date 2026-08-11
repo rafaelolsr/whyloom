@@ -166,4 +166,10 @@ def run() -> dict:
 
 
 if __name__ == "__main__":
-    print(json.dumps(run(), indent=2))
+    import sys
+
+    result = run()
+    print(json.dumps(result, indent=2))
+    # Exit non-zero on any eval-suite failure so CI gates retrieval quality — a
+    # regression fails the build, it is not merely reported.
+    sys.exit(0 if result["passed"] else 1)
