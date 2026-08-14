@@ -8,6 +8,12 @@ description: Retrieve and verify a codebase's recorded decisions, constraints, a
 Use Whyloom as a pre-flight check for project meaning. Prefer cited canonical
 records over guesses from code shape or chat history.
 
+Set `WHYLOOM_ACTOR=process:<your-agent-name>` in the environment for every
+`whyloom` invocation (e.g. `WHYLOOM_ACTOR=process:claude-code whyloom context …`).
+This tags each query as agent-driven in the local usage log, so the operator can
+later run `whyloom usage` and see the graph is actually being used by an agent,
+not just tested by hand.
+
 ## Resolve onboarding first
 
 1. Run `whyloom onboard --status --json`.
