@@ -171,12 +171,7 @@ def _human_lines(p: dict[str, Any]) -> list[str] | None:  # noqa: C901 - a flat 
 
     # usage.
     if "total_queries" in p:
-        if not p.get("total_queries"):
-            return ["No graph queries recorded yet."]
-        out.append(p.get("summary", f"{p['total_queries']} queries."))
-        for cmd, n in p.get("by_command", {}).items():
-            out.append(f"  {cmd}: {n}")
-        return out
+        return _usage_lines(p)
 
     # validate.
     if "valid" in p and "errors" in p:
@@ -393,6 +388,45 @@ def _doctor_lines(p: dict[str, Any]) -> list[str]:
         out.append(f"  {'✓' if c['ok'] else '✗'} {c['name']}: {detail}")
     if p["ready"]:
         out.append("  Try: whyloom context \"<a task>\"  ·  whyloom impact <file>")
+    return out
+
+
+def _usage_lines(p: dict[str, Any]) -> list[str]:
+    """Render `usage` as an adoption dashboard: is an agent reaching for the graph
+    here, how recently, and are its queries landing? Leads with the verdict, then
+    the freshness/hit-rate signals, then the per-command breakdown."""
+    if not p.get("total_queries"):
+        return ["No graph queries recorded yet — no evidence an agent has used the graph here."]
+
+    out: list[str] = [p.get("verdict", p.get("summary", ""))]
+    out.append("")
+
+    agent = p.get("agent_queries", 0)
+    total = p["total_queries"]
+    out.append(f"  Adoption   {agent}/{total} queries from an agent  ·  {p.get('queries_last_7d', 0)} in last 7d  ·  {p.get('queries_last_30d', 0)} in last 30d")
+
+    days = p.get("last_used_days_ago")
+    if days is not None:
+        flag = " ⚠ may be going dark" if days > 7 else ""
+        out.append(f"  Freshness  last used {days:g} day(s) ago{flag}")
+
+    rate = p.get("hit_rate")
+    if rate is not None:
+        out.append(f"  Hit rate   {int(rate * 100)}% of {p.get('hits_scored', 0)} scored queries landed (found a target, not empty)")
+
+    if p.get("by_command"):
+        out.append("")
+        out.append("  By command:")
+        for cmd, n in p["by_command"].items():
+            out.append(f"    {cmd}: {n}")
+
+    if p.get("recent"):
+        out.append("")
+        out.append("  Recent:")
+        for e in p["recent"]:
+            at = (e.get("at") or "")[:16].replace("T", " ")
+            who = e.get("kind", "?")
+            out.append(f"    {at}  {who:7} {e.get('command', '?')} {e.get('target', '')}".rstrip())
     return out
 
 
