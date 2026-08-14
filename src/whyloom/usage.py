@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 USAGE_RELATIVE = ".whyloom/cache/usage.jsonl"
@@ -44,7 +44,7 @@ def record_query(root: Path, config: dict, command: str, target: str, summary: d
         entry = {
             "command": command,
             "target": target[:120],
-            "at": datetime.now(timezone.utc).isoformat(),
+            "at": datetime.now(UTC).isoformat(),
             "actor": actor,
             "kind": _kind(actor),
             **summary,
@@ -72,7 +72,7 @@ def _parse_at(value: object) -> datetime | None:
         parsed = datetime.fromisoformat(value)
     except ValueError:
         return None
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
 def _is_hit(entry: dict) -> bool | None:
@@ -107,7 +107,7 @@ def usage_report(root: Path, config: dict, recent: int = 10) -> dict:
         except json.JSONDecodeError:
             continue
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     times = [t for t in (_parse_at(e.get("at")) for e in entries) if t]
     last = max(times) if times else None
     first = min(times) if times else None

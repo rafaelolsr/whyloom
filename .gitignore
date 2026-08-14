@@ -9,3 +9,12 @@ build/
 
 # macOS
 .DS_Store
+
+# Bootcamp / presentation artifacts (not part of the package)
+.codex-build/
+Conteudo_Apresentacao_Evals.md
+Evals_Archflow_Animated.html
+Evals_Bootcamp_*.pptx
+Evals_Bootcamp_*.pptx.inspect.ndjson
+Evals_Bootcamp_AI_Engineering/
+Evals_Bootcamp_Archflow/
