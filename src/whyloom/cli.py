@@ -876,6 +876,22 @@ def flow_command(
     emit(payload, as_json)
 
 
+@app.command("mcp")
+def mcp_command(
+    root: Path | None = typer.Option(None, "--root"),
+) -> None:
+    """Serve read-only graph queries over MCP (stdio) for Claude Desktop, Cursor,
+    and other MCP clients. Writing stays in the CLI so human review is never bypassed."""
+    resolved, _ = project(root, False)
+    try:
+        from .mcp_server import serve
+        serve(resolved)
+    except ModuleNotFoundError as exc:
+        if exc.name and exc.name.split(".")[0] == "mcp":
+            fail("MCP001", 'MCP support is not installed. Install with: pip install "whyloom[mcp]"', False)
+        raise
+
+
 @app.command("accept")
 def accept_command(
     ids: list[str] = typer.Argument(None, help="Record ids to accept (e.g. DEC-0007). Omit with --all."),

@@ -241,6 +241,7 @@ whyloom doctor
 - `usage` reports how many queries the graph answered (per command) — concrete proof the agent is using the graph instead of grep.
 - `validate` detects broken links, stale records, contradictory active constraints, and same-type records claiming the same scope without a supersession link.
 - `doctor` verifies that configuration, records, index, and validation are ready.
+- `mcp` serves the read-only query surface (`context`, `explain`, `impact`, `path`, `flow`) over MCP stdio for Claude Desktop, Cursor, Windsurf, and VS Code — same payloads as `--json`. Writing stays in the CLI so human review is never bypassed. Requires `pip install "whyloom[mcp]"`.
 
 ## Onboard an existing codebase
 

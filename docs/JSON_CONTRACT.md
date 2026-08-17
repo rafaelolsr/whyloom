@@ -48,6 +48,15 @@ evidence path so an agent can verify it before acting.
 Generated graph data is evidence, not authority. Cite the canonical record or
 source path when using a result to justify a change.
 
+## MCP server
+
+`whyloom mcp` (optional extra: `pip install "whyloom[mcp]"`) serves the
+read-only query surface over MCP stdio. Tool payloads are identical to the
+corresponding `--json` output, including `schema_version` and the error object.
+Tools: `whyloom_context`, `whyloom_explain`, `whyloom_impact`, `whyloom_path`,
+`whyloom_flow`. Write commands are not exposed — proposing and accepting records
+stays in the CLI and pull requests, preserving the human review gate.
+
 Bootstrap evidence uses `id`, `kind`, `source`, `locator`, and `summary`. The
 manifest always declares `authoritative: false`. Inferred canonical records may
 add `confidence`, structured `evidence`, and `open_questions`, but remain

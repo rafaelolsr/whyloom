@@ -5,6 +5,15 @@ model-level changes while the design settles.
 
 ## Unreleased
 
+### MCP server
+
+- **New `whyloom mcp` command** — serves the read-only query surface (`context`,
+  `explain`, `impact`, `path`, `flow`) over MCP stdio for Claude Desktop, Cursor,
+  Windsurf, and VS Code. Payloads are identical to `--json` output. Writing is
+  deliberately absent: `reflect`/`accept` stay in the CLI and in pull requests so
+  the human review gate cannot be bypassed by a connected agent. Requires the
+  optional extra: `pip install "whyloom[mcp]"`.
+
 ### Conflict detection
 
 - `validate` now flags same-type records claiming substantially the same scope
