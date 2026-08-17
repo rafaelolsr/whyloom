@@ -32,7 +32,13 @@ evidence path so an agent can verify it before acting.
   relationships, communities, warnings, and unresolved questions.
 - `explain`: target resolution, governing records, related code, evidence, and knowledge gaps.
 - `impact`: affected code and records plus traversal evidence.
-- `validate`: validity, record count, errors, and warnings; exits nonzero when invalid.
+- `validate`: validity, record count, errors, and warnings; exits nonzero when
+  invalid. Warnings include scope conflicts: `CONFLICT002` (two authoritative
+  same-type records claim substantially the same targets without a supersession
+  link) and `CONFLICT003` (a draft covers the scope of an authoritative record —
+  a supersession candidate). Conflicts are advisory and never fail validation.
+- `propose`: created proposals, skip count, and `conflicts` — the target-conflict
+  warnings that involve the records just drafted.
 - `reflect`: proposal path, changed paths, and `requires_review: true`.
 - `doctor`: readiness checks for repository, configuration, records, index, and validation.
 

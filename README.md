@@ -239,7 +239,7 @@ whyloom doctor
 - `accept` records a human verification (bulk with `--all`) — needed for a *decision's* why; a grounded structural record governs without it.
 - `learnings` reports rationale gaps (source files with no governing record) so the capture loop stays reliable; add `--changed` to scope it to recent work.
 - `usage` reports how many queries the graph answered (per command) — concrete proof the agent is using the graph instead of grep.
-- `validate` detects broken links, stale records, and contradictory active constraints.
+- `validate` detects broken links, stale records, contradictory active constraints, and same-type records claiming the same scope without a supersession link.
 - `doctor` verifies that configuration, records, index, and validation are ready.
 
 ## Onboard an existing codebase

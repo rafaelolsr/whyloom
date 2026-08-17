@@ -162,6 +162,7 @@ def _human_lines(p: dict[str, Any]) -> list[str] | None:  # noqa: C901 - a flat 
             return [p.get("next_action", "No new proposals.")]
         out.append(f"Drafted {p['created_count']} proposed record(s):")
         out += [f"  • {c}" for c in p["created"]]
+        out += [f"  ⚠ {c.get('code', '')}: {c.get('message', '')}" for c in p.get("conflicts", [])]
         out.append("Review, refine, and accept before treating as authoritative.")
         return out
 
@@ -176,9 +177,12 @@ def _human_lines(p: dict[str, Any]) -> list[str] | None:  # noqa: C901 - a flat 
     # validate.
     if "valid" in p and "errors" in p:
         if p["valid"]:
-            return [f"✓ Valid ({p.get('records', 0)} records)"]
-        out.append(f"✗ Invalid ({len(p['errors'])} error(s)):")
-        out += [f"  • {e.get('code', '')}: {e.get('message', '')}" for e in p["errors"]]
+            out.append(f"✓ Valid ({p.get('records', 0)} records)")
+        else:
+            out.append(f"✗ Invalid ({len(p['errors'])} error(s)):")
+            out += [f"  • {e.get('code', '')}: {e.get('message', '')}" for e in p["errors"]]
+        # Warnings (e.g. target conflicts) are advisory — shown, never blocking.
+        out += [f"  ⚠ {w.get('code', '')}: {w.get('message', '')}" for w in p.get("warnings", [])]
         return out
 
     # report (god nodes + suggested questions).

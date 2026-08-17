@@ -3,6 +3,21 @@
 All notable changes to Whyloom. Versions are pre-1.0; minor bumps may include
 model-level changes while the design settles.
 
+## Unreleased
+
+### Conflict detection
+
+- `validate` now flags same-type records claiming substantially the same scope
+  (target-set Jaccard ≥ 0.5 — merely touching one shared file stays silent, since
+  complementary decisions legitimately co-govern a path): two authoritative
+  records without a supersession link (`CONFLICT002`), and a draft covering the
+  scope of an authoritative record — a supersession candidate for the reviewer
+  (`CONFLICT003`). Advisory warnings, never blocking; supersession chains
+  (including transitive ones) count as one lineage, not a conflict.
+- `propose` surfaces these conflicts for the records it just drafted, so the
+  reviewer sees them at proposal time, not at some later validate.
+- Human output for `validate` and `propose` now prints warnings.
+
 ## 0.8.0 — 2026-08-10
 
 A large release driven by piloting Whyloom on two real codebases (a Python

@@ -181,6 +181,19 @@ def propose_from_rationale(root: Path, config: dict, *, limit: int = 50) -> dict
         (proposals_dir / filename).write_text(body, encoding="utf-8")
         created.append((proposals_dir / filename).relative_to(root).as_posix())
 
+    # Conflict check on what was just drafted: a new proposal that shares a
+    # target with an authoritative record is a supersession candidate the
+    # reviewer should resolve — surface it now, not at some later validate.
+    conflicts: list[dict] = []
+    if created:
+        all_records, _ = discover_records(root, config["records_dir"])
+        created_paths = set(created)
+        conflicts = [
+            item.model_dump(mode="json")
+            for item in _conflict_diagnostics(all_records)
+            if item.path in created_paths
+        ]
+
     if created:
         next_action = "Review the proposed rationale records and accept, refine, or delete them."
     elif skipped:
@@ -194,6 +207,7 @@ def propose_from_rationale(root: Path, config: dict, *, limit: int = 50) -> dict
         "created": created,
         "created_count": len(created),
         "skipped": skipped,
+        "conflicts": conflicts,
         "next_action": next_action,
     }
 
@@ -485,6 +499,95 @@ def init_project(root: Path) -> dict:
     return {"root": str(root), "created": created, "skipped": skipped}
 
 
+def _supersession_linked(first: str, second: str, supersedes: dict[str, list[str]]) -> bool:
+    """Whether a supersession chain (transitive, either direction) connects two
+    record ids. Linked records are one lineage, not a conflict."""
+
+    def reaches(start: str, goal: str) -> bool:
+        seen: set[str] = set()
+        frontier = [start]
+        while frontier:
+            current = frontier.pop()
+            if current == goal:
+                return True
+            if current in seen:
+                continue
+            seen.add(current)
+            frontier.extend(supersedes.get(current, []))
+        return False
+
+    return reaches(first, second) or reaches(second, first)
+
+
+# Two records conflict only when they claim substantially the same SCOPE, not
+# when they merely touch one shared file — complementary decisions legitimately
+# co-govern a path (dogfooding: whyloom's own decisions overlap on languages.py
+# without contradicting each other). Jaccard over target sets captures "same
+# subject": identical single-target records score 1.0; a broad record brushing a
+# focused one scores low and stays silent.
+_CONFLICT_SCOPE_OVERLAP = 0.5
+
+
+def _conflict_diagnostics(records: list) -> list[Diagnostic]:
+    """Detect same-type records claiming substantially the same targets.
+
+    Two authoritative records of one type governing the same scope hand an
+    agent two sources of truth (CONFLICT002) unless a supersession chain links
+    them. A draft covering the scope of an authoritative same-type record is a
+    supersession candidate the reviewer should link, refine, or discard before
+    accepting (CONFLICT003). Advisory by design: warnings, never errors — the
+    human resolves the conflict at review, the check only surfaces it."""
+    diagnostics: list[Diagnostic] = []
+    supersedes = {record.id: record.supersedes for record in records}
+    candidates = [
+        record
+        for record in records
+        # Only the "why" record types can contradict each other; architecture and
+        # glossary records legitimately overlap decisions on the same paths.
+        if record.type.value in {"decision", "constraint"} and record.targets
+    ]
+
+    def scope_overlap(first, second) -> tuple[float, list[str]]:
+        a, b = set(first.targets), set(second.targets)
+        shared = a & b
+        if not shared:
+            return 0.0, []
+        return len(shared) / len(a | b), sorted(shared)
+
+    for i, first in enumerate(candidates):
+        for second in candidates[i + 1 :]:
+            if first.type != second.type or first.id == second.id:
+                continue
+            statuses = {first.okf_status(), second.okf_status()}
+            if statuses == {RecordStatus.STABLE}:
+                code = "CONFLICT002"
+            elif statuses == {RecordStatus.STABLE, RecordStatus.DRAFT}:
+                code = "CONFLICT003"
+            else:
+                continue  # deprecated or draft-draft pairs are history, not conflict
+            overlap, shared = scope_overlap(first, second)
+            if overlap < _CONFLICT_SCOPE_OVERLAP:
+                continue
+            if _supersession_linked(first.id, second.id, supersedes):
+                continue
+            sample = ", ".join(shared[:3]) + ("…" if len(shared) > 3 else "")
+            if code == "CONFLICT002":
+                message = (
+                    f"{first.id} and {second.id} both govern the same scope ({sample}) as {first.type.value}s; "
+                    "if one replaces the other, link them with supersedes"
+                )
+                path = second.path.as_posix()
+            else:
+                draft, authoritative = (first, second) if first.okf_status() == RecordStatus.DRAFT else (second, first)
+                message = (
+                    f"draft {draft.id} covers the scope of authoritative {authoritative.id} ({sample}); "
+                    "review whether it supersedes, refines, or duplicates it before accepting"
+                )
+                path = draft.path.as_posix()
+            diagnostics.append(Diagnostic(code=code, severity="warning", message=message, path=path))
+    return diagnostics
+
+
 def validate_project(root: Path, config: dict) -> dict:
     root = root.resolve()
     records, diagnostics = discover_records(root, config["records_dir"])
@@ -587,6 +690,7 @@ def validate_project(root: Path, config: dict) -> dict:
     for title, identifiers in by_title.items():
         if len(identifiers) > 1:
             diagnostics.append(Diagnostic(code="CONFLICT001", severity="warning", message=f"multiple active constraints share title '{title}': {', '.join(identifiers)}"))
+    diagnostics.extend(_conflict_diagnostics(records))
 
     db_path = root / config["database"]
     if db_path.exists():
