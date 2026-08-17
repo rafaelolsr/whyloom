@@ -39,7 +39,10 @@ evidence path so an agent can verify it before acting.
   a supersession candidate). Conflicts are advisory and never fail validation.
 - `propose`: created proposals, skip count, and `conflicts` — the target-conflict
   warnings that involve the records just drafted.
-- `reflect`: proposal path, changed paths, and `requires_review: true`.
+- `reflect`: proposal path, changed paths, `requires_review: true`, and
+  `precedents` — up to three previously reviewed decisions ranked by target and
+  title overlap with the work, each with `id`, `title`, `status`, `reversed`
+  (superseded lineage), `path`, and `overlapping_targets`.
 - `doctor`: readiness checks for repository, configuration, records, index, and validation.
 
 Generated graph data is evidence, not authority. Cite the canonical record or

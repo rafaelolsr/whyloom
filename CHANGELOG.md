@@ -18,6 +18,15 @@ model-level changes while the design settles.
   reviewer sees them at proposal time, not at some later validate.
 - Human output for `validate` and `propose` now prints warnings.
 
+### Precedent in reflect
+
+- `reflect` now ranks previously reviewed decisions relevant to the work (target
+  overlap with the changed paths plus title match against the task summary) and
+  returns the top 3 as `precedents`, steering the author to link or supersede an
+  existing decision instead of duplicating it. Superseded decisions are included
+  on purpose — "we tried this and reversed it" is the highest-value precedent —
+  and marked `reversed`.
+
 ## 0.8.0 — 2026-08-10
 
 A large release driven by piloting Whyloom on two real codebases (a Python

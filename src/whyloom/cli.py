@@ -151,6 +151,13 @@ def _human_lines(p: dict[str, Any]) -> list[str] | None:  # noqa: C901 - a flat 
         changed = p.get("changed_paths", [])
         if changed:
             out.append("  changed: " + ", ".join(changed[:6]) + ("…" if len(changed) > 6 else ""))
+        precedents = p.get("precedents", [])
+        if precedents:
+            out.append("  Precedent — reviewed decisions already cover this ground:")
+            for r in precedents:
+                marker = " (reversed — read before repeating it)" if r.get("reversed") else ""
+                out.append(f"    {r['id']} · {r['status']} — {r['title']}{marker}")
+            out.append("    Link them (constraints/supersedes) instead of restating them.")
         out.append("  Fill in the Decision/Rationale sections, then accept (or review in a PR).")
         for w in p.get("warnings", []):
             out.append(f"  ⚠ {w}")

@@ -810,6 +810,61 @@ def _git_changed_paths(root: Path) -> tuple[list[str], str, list[str]]:
     return changed, baseline, warnings
 
 
+def _precedents(
+    root: Path,
+    config: dict,
+    task_summary: str,
+    changed_paths: list[str],
+    *,
+    limit: int = 3,
+) -> list[dict]:
+    """Rank previously reviewed decisions relevant to the work being reflected,
+    so an agent links or supersedes an existing decision instead of duplicating
+    it. Deterministic: target overlap with the changed paths plus title-token
+    overlap with the task summary — no LLM, no index required.
+
+    Deprecated (superseded/rejected) decisions are included on purpose: "we
+    tried this and reversed it" is the highest-value precedent."""
+    records, _ = discover_records(root, config["records_dir"])
+    summary_tokens = {token for token in re.findall(r"[a-z0-9]{3,}", task_summary.casefold())}
+    changed = set(changed_paths)
+    scored: list[tuple[float, str, dict]] = []
+    for record in records:
+        # Drafts are not precedent — they were never reviewed.
+        if record.type.value != "decision" or record.okf_status() == RecordStatus.DRAFT:
+            continue
+        overlapping: list[str] = []
+        score = 0.0
+        for target in record.targets:
+            if target in changed:
+                overlapping.append(target)
+                score += 2.0
+            elif any(p.startswith(target.rstrip("/") + "/") or target.startswith(p.rstrip("/") + "/") for p in changed):
+                overlapping.append(target)
+                score += 1.0
+        title_tokens = {token for token in re.findall(r"[a-z0-9]{3,}", record.title.casefold())}
+        score += len(summary_tokens & title_tokens)
+        if score <= 0:
+            continue
+        scored.append(
+            (
+                score,
+                record.id,
+                {
+                    "id": record.id,
+                    "title": record.title,
+                    "status": record.status.value,
+                    "reversed": record.okf_status() == RecordStatus.DEPRECATED,
+                    "path": record.path.as_posix(),
+                    "overlapping_targets": sorted(set(overlapping)),
+                    "score": score,
+                },
+            )
+        )
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    return [item[2] for item in scored[:limit]]
+
+
 def reflect_project(
     root: Path,
     task_summary: str,
@@ -843,6 +898,11 @@ def reflect_project(
         {p for p in changed_paths if not any(p == n or p.startswith(n) for n in _REFLECT_TARGET_NOISE)}
     )
     symbol_brief = _changed_symbols(root, config, changed_paths)
+    # Precedent check before drafting: has a reviewed decision already covered
+    # this ground? Surfacing it here steers the author toward linking (via
+    # supersedes/constraints) instead of writing a duplicate the reviewer must
+    # then reconcile.
+    precedents = _precedents(root, config, task_summary, changed_paths)
 
     stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S-%f")
     proposal_id = f"PROP-{stamp}"
@@ -888,6 +948,7 @@ def reflect_project(
         "proposal": path.relative_to(root).as_posix(),
         "status": "draft",
         "changed_paths": changed_paths,
+        "precedents": precedents,
         "agent_brief": {
             "task_summary": task_summary.strip(),
             "changed_symbols": symbol_brief,
@@ -895,6 +956,12 @@ def reflect_project(
             "instruction": (
                 "Fill each marked section from the task summary, changed files, and symbols. "
                 "This proposal stays status: draft until a human verifies it in review."
+                + (
+                    " Related reviewed decisions exist (see precedents): reference them via constraints, "
+                    "or supersedes if this work replaces one — do not restate them."
+                    if precedents
+                    else ""
+                )
             ),
         },
         "requires_review": True,
