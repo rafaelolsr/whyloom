@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import heapq
+import re
 from itertools import count
 from pathlib import Path
 
@@ -223,14 +224,26 @@ def compact_context_packet(packet: dict) -> dict:
     }
 
 
-def _resolve_node(store: GraphStore, target: str) -> dict | None:
-    """Resolve a user-supplied target to a graph node by id, file path, exact
-    symbol name, then lexical search — the resolution explain/impact/flow share.
-    An exact symbol-name match must win before fuzzy search, so `AdvisorExecutor`
-    resolves to the symbol literally named that, not a keyword-ranked lookalike."""
+# A target "looks like a path" when it carries a separator or a file suffix.
+# Such targets name a specific file; they must never fuzzy-resolve to the
+# lexically-nearest unrelated node.
+_PATHLIKE = re.compile(r"[/\\]|\.[A-Za-z0-9]{1,8}$")
+
+
+def _resolve_node(store: GraphStore, target: str) -> tuple[dict | None, str]:
+    """Resolve a user-supplied target to a graph node and say HOW it resolved:
+    ``exact`` (id, path, or exact symbol name), ``suffix`` (a path-like target
+    matched a file by trailing path), ``fuzzy`` (lexical best match), or
+    ``missing``.
+
+    Trust rule (DEC-0008): a path-like target that names no indexed file must
+    return ``missing`` — never the fuzzy fallback. Confidently attaching records
+    to a file that does not exist is worse than answering not-found. Fuzzy
+    resolution is reserved for name-like queries and is labeled so callers can
+    warn."""
     node = store.node(target) or store.node(f"file:{target}")
     if node is not None:
-        return node
+        return node, "exact"
     # Exact symbol-label match (case-insensitive), preferring a class/definition
     # (id ends with the bare name) over a method (id ends with Class.name).
     rows = store.connection.execute(
@@ -239,9 +252,45 @@ def _resolve_node(store: GraphStore, target: str) -> dict | None:
         (target,),
     ).fetchall()
     if rows:
-        return store._node_dict(rows[0])
+        return store._node_dict(rows[0]), "exact"
+    if _PATHLIKE.search(target):
+        # Allow a deterministic basename/suffix match ("auth.py" → the one file
+        # ending in /auth.py), but nothing looser.
+        row = store.connection.execute(
+            "SELECT id, type, label, path, source_path, source_hash, data FROM nodes "
+            "WHERE type = 'File' AND path LIKE ? ORDER BY length(path) LIMIT 1",
+            (f"%/{target.lstrip('/')}",),
+        ).fetchone()
+        if row:
+            return store._node_dict(row), "suffix"
+        return None, "missing"
     matches = store.search(target, 1)
-    return matches[0] if matches else None
+    if matches:
+        return matches[0], "fuzzy"
+    return None, "missing"
+
+
+def _resolution_warning(target: str, node: dict, resolution: str) -> str | None:
+    """A warning string when resolution was not exact, else None — so every
+    command that fuzzy-resolved tells the caller what it actually answered."""
+    if resolution == "fuzzy":
+        return f"'{target}' matched no entity exactly; answered for the closest match '{node['label']}' — verify it is what you meant."
+    return None
+
+
+def _directory_file_nodes(store: GraphStore, target: str, limit: int = 8) -> list[dict]:
+    """File nodes under a directory-like target, shortest paths first. Lets
+    explain answer for a directory (a common record target) even though only
+    files are graph nodes."""
+    prefix = target.replace("\\", "/").strip().rstrip("/")
+    if not prefix:
+        return []
+    rows = store.connection.execute(
+        "SELECT id, type, label, path, source_path, source_hash, data FROM nodes "
+        "WHERE type = 'File' AND path LIKE ? ORDER BY length(path) LIMIT ?",
+        (f"{prefix}/%", limit),
+    ).fetchall()
+    return [store._node_dict(row) for row in rows]
 
 
 def impact_analysis(store: GraphStore, target: str, max_depth: int = 2, max_items: int = 20) -> dict:
@@ -252,9 +301,12 @@ def impact_analysis(store: GraphStore, target: str, max_depth: int = 2, max_item
     just files. Results are grouped by how they are affected: directly governed
     records, the files/symbols that carry the change, and the symbols that call
     into affected symbols (downstream callers)."""
-    node = _resolve_node(store, target)
+    node, resolution = _resolve_node(store, target)
     if node is None:
         return {"target": target, "found": False, "affected": {}, "evidence": [], "warnings": ["Target not found in the graph."]}
+    warnings: list[str] = []
+    if resolution_note := _resolution_warning(target, node, resolution):
+        warnings.append(resolution_note)
 
     # Impact must be PRECISE, not lexical. A weighted graph walk (traverse) wanders
     # across loosely-related nodes via any edge and inflates "1 real caller" into
@@ -313,10 +365,15 @@ def impact_analysis(store: GraphStore, target: str, max_depth: int = 2, max_item
     files += [i for i in affected.values() if i["type"] == "File"]
     # Symbols on the change surface (contained) plus dependent symbols.
     symbols = contained + [i for i in affected.values() if i["type"] == "Symbol"]
+    # Dependents that call OR import into the surface. A module-level import
+    # (`from src.config.settings import X`) produces a File→File IMPORTS edge;
+    # excluding File dependents here once reported "no production callers" for a
+    # file imported by 200+ modules — a false all-clear on the most dangerous
+    # question impact answers.
     callers = [
-        {"id": i["id"], "label": i["label"], "path": i.get("path"), "via": (i.get("via") or {}).get("type")}
+        {"id": i["id"], "label": i["label"], "path": i.get("path") or i["label"], "via": (i.get("via") or {}).get("type")}
         for i in affected.values()
-        if i["type"] == "Symbol" and (i.get("via") or {}).get("type") in {"CALLS", "IMPORTS"}
+        if i["type"] in {"Symbol", "File"} and (i.get("via") or {}).get("type") in {"CALLS", "IMPORTS"}
     ]
 
     return {
@@ -330,7 +387,7 @@ def impact_analysis(store: GraphStore, target: str, max_depth: int = 2, max_item
         },
         "counts": {"records": len(records), "files": len(files), "symbols": len(symbols), "callers": len(callers)},
         "evidence": all_items,
-        "warnings": [],
+        "warnings": warnings,
     }
 
 
@@ -340,13 +397,17 @@ def find_path(store: GraphStore, source: str, target: str, max_hops: int = 8) ->
     Breadth-first over the undirected graph, so the first path found is minimal
     in hops. Each hop names the edge type and its provenance/confidence so an
     agent can judge how much to trust the connection."""
-    start = _resolve_node(store, source)
-    end = _resolve_node(store, target)
+    start, start_resolution = _resolve_node(store, source)
+    end, end_resolution = _resolve_node(store, target)
     warnings: list[str] = []
     if start is None:
         warnings.append(f"Source not found in the graph: {source}")
+    elif note := _resolution_warning(source, start, start_resolution):
+        warnings.append(note)
     if end is None:
         warnings.append(f"Target not found in the graph: {target}")
+    elif note := _resolution_warning(target, end, end_resolution):
+        warnings.append(note)
     if start is None or end is None:
         return {"source": source, "target": target, "found": False, "hops": [], "warnings": warnings}
 
@@ -525,9 +586,10 @@ def flow_trace(store: GraphStore, target: str, max_depth: int = 3, max_steps: in
     method's key sub-steps (e.g. the loop it drives) expand rather than dead-end
     at one leaf — without reading code or an LLM. Depth-bounded so it names the
     shape, not every leaf."""
-    node = _resolve_node(store, target)
+    node, resolution = _resolve_node(store, target)
     if node is None:
         return {"target": target, "found": False, "steps": [], "warnings": ["Target not found in the graph."]}
+    flow_warnings = [note] if (note := _resolution_warning(target, node, resolution)) else []
 
     # A file or a class has no calls of its own — its methods do. Start from the
     # orchestrating method (the one making the most meaningful project calls) so
@@ -580,7 +642,7 @@ def flow_trace(store: GraphStore, target: str, max_depth: int = 3, max_steps: in
         return node_out
 
     trace = walk(entry["id"], entry.get("label", target), 0, {entry["id"]})
-    return {"target": target, "entry": entry.get("label", target), "found": True, "flow": trace, "warnings": []}
+    return {"target": target, "entry": entry.get("label", target), "found": True, "flow": trace, "warnings": flow_warnings}
 
 
 def explain_target(
@@ -591,9 +653,41 @@ def explain_target(
     root: Path | None = None,
     config: dict | None = None,
 ) -> dict:
-    node = _resolve_node(store, target)
+    node, resolution = _resolve_node(store, target)
+    warnings: list[str] = []
     if node is None:
+        # A directory is a legitimate record target ("src/agents"), but only
+        # files are graph nodes. Answer for the directory by traversing from its
+        # contained files, so a record targeting the directory is reachable.
+        directory_files = _directory_file_nodes(store, target)
+        if directory_files:
+            items = traverse(store, directory_files, max_depth=max_depth, max_items=max_items)
+            governing = [item for item in items if item["type"] in GOVERNING_TYPES]
+            _enrich_governing(governing, root, config)
+            prefix = target.replace("\\", "/").strip().rstrip("/")
+            # Keep only records that actually claim this directory (or something
+            # inside it) — traversal from contained files can also reach records
+            # about sibling code.
+            governing = [
+                item
+                for item in governing
+                if any(t == prefix or t.startswith(f"{prefix}/") or prefix.startswith(f"{t.rstrip('/')}/") for t in item.get("targets", []))
+                or not item.get("targets")
+            ]
+            directory_node = {"id": f"dir:{prefix}", "type": "Directory", "label": prefix, "path": prefix}
+            return {
+                "target": target,
+                "found": True,
+                "node": directory_node,
+                "governing_records": governing,
+                "related_code": [item for item in items if item["type"] in {"File", "Symbol"}],
+                "evidence": items,
+                "knowledge_gaps": [] if governing else ["No governing record is linked to this target."],
+                "warnings": [],
+            }
         return {"target": target, "found": False, "evidence": [], "warnings": ["Target not found in the graph."]}
+    if note := _resolution_warning(target, node, resolution):
+        warnings.append(note)
     items = traverse(store, [node], max_depth=max_depth, max_items=max_items)
     governing = [item for item in items if item["type"] in GOVERNING_TYPES]
     _enrich_governing(governing, root, config)
@@ -605,4 +699,5 @@ def explain_target(
         "related_code": [item for item in items if item["type"] in {"File", "Symbol"} and item["id"] != node["id"]],
         "evidence": items,
         "knowledge_gaps": [] if any(item["type"] in GOVERNING_TYPES for item in items) else ["No governing record is linked to this target."],
+        "warnings": warnings,
     }

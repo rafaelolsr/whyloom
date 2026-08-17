@@ -5,6 +5,26 @@ model-level changes while the design settles.
 
 ## Unreleased
 
+### Resolution trust — fixes from a real-repo beta evaluation
+
+- **Path-like targets never fuzzy-resolve.** `explain doesnotexist.py` used to
+  confidently attach the lexically-nearest governing record; a path-like target
+  that names no indexed file now returns not-found. A deterministic basename
+  match (`auth.py` → the file ending in `/auth.py`) still works; name-like
+  queries may still fuzzy-resolve but now carry an explicit "closest match —
+  verify" warning in every command.
+- **`impact` counts module importers as dependents.** File→File IMPORTS edges
+  (from `from pkg.module import X`) were excluded from `downstream_callers`,
+  reporting "no production callers" for files imported by 200+ modules. Importing
+  files now appear as dependents; human output says "production dependent(s) —
+  code that calls or imports this".
+- **`explain <directory>` answers for directory record targets.** Only files are
+  graph nodes, so a record targeting `src/agents` was unreachable via
+  `explain src/agents`. Directories now resolve through their contained files,
+  returning the records that claim that scope (trailing slash included).
+
+## Unreleased
+
 ### MCP server
 
 - **New `whyloom mcp` command** — serves the read-only query surface (`context`,
