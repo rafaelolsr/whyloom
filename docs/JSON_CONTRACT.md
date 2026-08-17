@@ -32,12 +32,30 @@ evidence path so an agent can verify it before acting.
   relationships, communities, warnings, and unresolved questions.
 - `explain`: target resolution, governing records, related code, evidence, and knowledge gaps.
 - `impact`: affected code and records plus traversal evidence.
-- `validate`: validity, record count, errors, and warnings; exits nonzero when invalid.
-- `reflect`: proposal path, changed paths, and `requires_review: true`.
+- `validate`: validity, record count, errors, and warnings; exits nonzero when
+  invalid. Warnings include scope conflicts: `CONFLICT002` (two authoritative
+  same-type records claim substantially the same targets without a supersession
+  link) and `CONFLICT003` (a draft covers the scope of an authoritative record —
+  a supersession candidate). Conflicts are advisory and never fail validation.
+- `propose`: created proposals, skip count, and `conflicts` — the target-conflict
+  warnings that involve the records just drafted.
+- `reflect`: proposal path, changed paths, `requires_review: true`, and
+  `precedents` — up to three previously reviewed decisions ranked by target and
+  title overlap with the work, each with `id`, `title`, `status`, `reversed`
+  (superseded lineage), `path`, and `overlapping_targets`.
 - `doctor`: readiness checks for repository, configuration, records, index, and validation.
 
 Generated graph data is evidence, not authority. Cite the canonical record or
 source path when using a result to justify a change.
+
+## MCP server
+
+`whyloom mcp` (optional extra: `pip install "whyloom[mcp]"`) serves the
+read-only query surface over MCP stdio. Tool payloads are identical to the
+corresponding `--json` output, including `schema_version` and the error object.
+Tools: `whyloom_context`, `whyloom_explain`, `whyloom_impact`, `whyloom_path`,
+`whyloom_flow`. Write commands are not exposed — proposing and accepting records
+stays in the CLI and pull requests, preserving the human review gate.
 
 Bootstrap evidence uses `id`, `kind`, `source`, `locator`, and `summary`. The
 manifest always declares `authoritative: false`. Inferred canonical records may

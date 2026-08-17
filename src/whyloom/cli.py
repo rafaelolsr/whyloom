@@ -151,6 +151,13 @@ def _human_lines(p: dict[str, Any]) -> list[str] | None:  # noqa: C901 - a flat 
         changed = p.get("changed_paths", [])
         if changed:
             out.append("  changed: " + ", ".join(changed[:6]) + ("…" if len(changed) > 6 else ""))
+        precedents = p.get("precedents", [])
+        if precedents:
+            out.append("  Precedent — reviewed decisions already cover this ground:")
+            for r in precedents:
+                marker = " (reversed — read before repeating it)" if r.get("reversed") else ""
+                out.append(f"    {r['id']} · {r['status']} — {r['title']}{marker}")
+            out.append("    Link them (constraints/supersedes) instead of restating them.")
         out.append("  Fill in the Decision/Rationale sections, then accept (or review in a PR).")
         for w in p.get("warnings", []):
             out.append(f"  ⚠ {w}")
@@ -162,6 +169,7 @@ def _human_lines(p: dict[str, Any]) -> list[str] | None:  # noqa: C901 - a flat 
             return [p.get("next_action", "No new proposals.")]
         out.append(f"Drafted {p['created_count']} proposed record(s):")
         out += [f"  • {c}" for c in p["created"]]
+        out += [f"  ⚠ {c.get('code', '')}: {c.get('message', '')}" for c in p.get("conflicts", [])]
         out.append("Review, refine, and accept before treating as authoritative.")
         return out
 
@@ -176,9 +184,12 @@ def _human_lines(p: dict[str, Any]) -> list[str] | None:  # noqa: C901 - a flat 
     # validate.
     if "valid" in p and "errors" in p:
         if p["valid"]:
-            return [f"✓ Valid ({p.get('records', 0)} records)"]
-        out.append(f"✗ Invalid ({len(p['errors'])} error(s)):")
-        out += [f"  • {e.get('code', '')}: {e.get('message', '')}" for e in p["errors"]]
+            out.append(f"✓ Valid ({p.get('records', 0)} records)")
+        else:
+            out.append(f"✗ Invalid ({len(p['errors'])} error(s)):")
+            out += [f"  • {e.get('code', '')}: {e.get('message', '')}" for e in p["errors"]]
+        # Warnings (e.g. target conflicts) are advisory — shown, never blocking.
+        out += [f"  ⚠ {w.get('code', '')}: {w.get('message', '')}" for w in p.get("warnings", [])]
         return out
 
     # report (god nodes + suggested questions).
@@ -863,6 +874,22 @@ def flow_command(
         payload = add_staleness_warning(payload, resolved, config, store)
     record_query(resolved, config, "flow", target, {"found": payload.get("found", False)})
     emit(payload, as_json)
+
+
+@app.command("mcp")
+def mcp_command(
+    root: Path | None = typer.Option(None, "--root"),
+) -> None:
+    """Serve read-only graph queries over MCP (stdio) for Claude Desktop, Cursor,
+    and other MCP clients. Writing stays in the CLI so human review is never bypassed."""
+    resolved, _ = project(root, False)
+    try:
+        from .mcp_server import serve
+        serve(resolved)
+    except ModuleNotFoundError as exc:
+        if exc.name and exc.name.split(".")[0] == "mcp":
+            fail("MCP001", 'MCP support is not installed. Install with: pip install "whyloom[mcp]"', False)
+        raise
 
 
 @app.command("accept")

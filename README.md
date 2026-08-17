@@ -235,12 +235,13 @@ whyloom doctor
 - `flow` traces the ordered execution skeleton from an entry point — the call sequence that answers "how does this work", deterministically.
 - `propose` drafts decision records from in-code `WHY`/`DECISION`/`HACK` comments — the author's own words, captured for a human to confirm.
 - `hook install` adds a local Git post-commit hook so the graph stays fresh automatically; it works with any remote, including GitHub, GitLab, and Azure DevOps. Use `hook azure` for a server-side Azure Pipelines snippet.
-- `reflect` drafts a rationale record after work is completed, requiring every claim to cite the changed code; anything it cannot ground becomes an open question.
+- `reflect` drafts a rationale record after work is completed, requiring every claim to cite the changed code; anything it cannot ground becomes an open question. It also surfaces precedent — previously reviewed decisions covering the same ground (including reversed ones) — so a new draft links or supersedes instead of duplicating.
 - `accept` records a human verification (bulk with `--all`) — needed for a *decision's* why; a grounded structural record governs without it.
 - `learnings` reports rationale gaps (source files with no governing record) so the capture loop stays reliable; add `--changed` to scope it to recent work.
 - `usage` reports how many queries the graph answered (per command) — concrete proof the agent is using the graph instead of grep.
-- `validate` detects broken links, stale records, and contradictory active constraints.
+- `validate` detects broken links, stale records, contradictory active constraints, and same-type records claiming the same scope without a supersession link.
 - `doctor` verifies that configuration, records, index, and validation are ready.
+- `mcp` serves the read-only query surface (`context`, `explain`, `impact`, `path`, `flow`) over MCP stdio for Claude Desktop, Cursor, Windsurf, and VS Code — same payloads as `--json`. Writing stays in the CLI so human review is never bypassed. Requires `pip install "whyloom[mcp]"`.
 
 ## Onboard an existing codebase
 

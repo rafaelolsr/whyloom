@@ -29,6 +29,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["build>=1.2", "pytest>=8.0", "ruff>=0.9"]
+# Read-only MCP server (`whyloom mcp`) for Claude Desktop, Cursor, and other
+# MCP clients; optional so the base install stays small and offline.
+mcp = ["mcp>=1.2"]
 # Optional tree-sitter grammars keep the base install small and offline while
 # enabling multi-language symbol extraction on demand.
 typescript = ["tree-sitter>=0.23", "tree-sitter-typescript>=0.23"]

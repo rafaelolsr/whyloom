@@ -3,6 +3,39 @@
 All notable changes to Whyloom. Versions are pre-1.0; minor bumps may include
 model-level changes while the design settles.
 
+## Unreleased
+
+### MCP server
+
+- **New `whyloom mcp` command** — serves the read-only query surface (`context`,
+  `explain`, `impact`, `path`, `flow`) over MCP stdio for Claude Desktop, Cursor,
+  Windsurf, and VS Code. Payloads are identical to `--json` output. Writing is
+  deliberately absent: `reflect`/`accept` stay in the CLI and in pull requests so
+  the human review gate cannot be bypassed by a connected agent. Requires the
+  optional extra: `pip install "whyloom[mcp]"`.
+
+### Conflict detection
+
+- `validate` now flags same-type records claiming substantially the same scope
+  (target-set Jaccard ≥ 0.5 — merely touching one shared file stays silent, since
+  complementary decisions legitimately co-govern a path): two authoritative
+  records without a supersession link (`CONFLICT002`), and a draft covering the
+  scope of an authoritative record — a supersession candidate for the reviewer
+  (`CONFLICT003`). Advisory warnings, never blocking; supersession chains
+  (including transitive ones) count as one lineage, not a conflict.
+- `propose` surfaces these conflicts for the records it just drafted, so the
+  reviewer sees them at proposal time, not at some later validate.
+- Human output for `validate` and `propose` now prints warnings.
+
+### Precedent in reflect
+
+- `reflect` now ranks previously reviewed decisions relevant to the work (target
+  overlap with the changed paths plus title match against the task summary) and
+  returns the top 3 as `precedents`, steering the author to link or supersede an
+  existing decision instead of duplicating it. Superseded decisions are included
+  on purpose — "we tried this and reversed it" is the highest-value precedent —
+  and marked `reversed`.
+
 ## 0.8.0 — 2026-08-10
 
 A large release driven by piloting Whyloom on two real codebases (a Python
