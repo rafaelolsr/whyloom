@@ -366,14 +366,14 @@ def _impact_lines(p: dict[str, Any]) -> list[str]:
     out: list[str] = [f"Changing {target} affects:"]
     if prod:
         # Production dependents matter most — review these before changing.
-        out.append(f"  {len(prod)} production caller(s) — review these first:")
+        out.append(f"  {len(prod)} production dependent(s) — code that calls or imports this; review first:")
         out += [f"    {x['label']}  ({x.get('path')})" for x in prod[:8]]
         if len(prod) > 8:
             out.append(f"    … and {len(prod) - 8} more")
     elif not tests:
         out.append("  No callers found — nothing else references it, so a change here is contained.")
     else:
-        out.append("  No production callers — only tests reference it.")
+        out.append("  No production dependents — only tests reference it.")
     if tests:
         out.append(f"  {len(tests)} test(s) exercise it — expect these to need updating.")
     if syms:
